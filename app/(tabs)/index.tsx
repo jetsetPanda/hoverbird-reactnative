@@ -35,7 +35,8 @@ function categoryStyle(category: string) {
 // advance width — unlike a regular space, which StaticLayout strips — so the
 // real last character isn't sitting on the clipped line boundary.
 function noClip(label: string): string {
-  return `${label} `;
+  // String.fromCharCode(160) is a non-breaking space.
+  return label + String.fromCharCode(160);
 }
 
 export default function HomeScreen() {
@@ -158,7 +159,7 @@ function LogActivityScreen({
                 ]}
                 onPress={() => setSelectedChildId(child.id)}>
                 <ThemedText style={selected ? styles.chipTextSelected : undefined}>
-                  {child.full_name}
+                  {noClip(child.full_name)}
                 </ThemedText>
               </Pressable>
             );
@@ -198,7 +199,7 @@ function LogActivityScreen({
                   <View style={[styles.templateIconBadge, { backgroundColor: color + '22' }]}>
                     <MaterialIcons name={icon as never} size={20} color={color} />
                   </View>
-                  <ThemedText style={styles.templateLabel}>{template.label}</ThemedText>
+                  <ThemedText style={styles.templateLabel}>{noClip(template.label)}</ThemedText>
                 </Pressable>
               );
             })}
@@ -286,7 +287,9 @@ function ActivityFeedScreen({
               pressed && styles.pressed,
             ]}
             onPress={() => setCategoryFilter(null)}>
-            <ThemedText style={!categoryFilter ? styles.chipTextSelected : undefined}>All</ThemedText>
+            <ThemedText style={!categoryFilter ? styles.chipTextSelected : undefined}>
+              {noClip('All')}
+            </ThemedText>
           </Pressable>
           {categories.map((category) => {
             const selected = categoryFilter === category;
@@ -307,7 +310,7 @@ function ActivityFeedScreen({
                   color={selected ? '#fff' : color}
                 />
                 <ThemedText style={selected ? styles.chipTextSelected : undefined}>
-                  {category}
+                  {noClip(category)}
                 </ThemedText>
               </Pressable>
             );
