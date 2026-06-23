@@ -7,7 +7,9 @@ module.exports = {
     orientation: 'portrait',
     icon: './assets/images/icon.png',
     scheme: 'hoverbirdreactnative',
-    userInterfaceStyle: 'automatic',
+    // TEMP: dark mode disabled — was 'automatic'. Restore to 'automatic' to
+    // re-enable system theming (also revert hooks/use-color-scheme*.ts).
+    userInterfaceStyle: 'light',
     newArchEnabled: true,
     ios: {
       supportsTablet: true,
