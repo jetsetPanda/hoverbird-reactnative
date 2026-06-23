@@ -4,6 +4,7 @@ import { ActivityIndicator, Pressable, ScrollView, StyleSheet, TextInput } from 
 
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
+import { RoleColors } from '@/constants/theme';
 import { useAuth, type UserRole } from '@/contexts/auth-provider';
 import { addChild, createFamily, fetchChildren, fetchMyFamily } from '@/lib/families';
 import {
@@ -33,6 +34,7 @@ function formatAge(birthdate: string | null): string | null {
 export default function FamilyScreen() {
   const { profile } = useAuth();
   const queryClient = useQueryClient();
+  const buttonColor = profile ? RoleColors[profile.role] : RoleColors.nanny;
 
   const familyQuery = useQuery({
     queryKey: ['my-family', profile?.id],
@@ -65,15 +67,15 @@ export default function FamilyScreen() {
             You haven&apos;t been added to a family yet. Enter an invite code from a parent
             below.
           </ThemedText>
-          <RedeemInviteForm onJoined={() => familyQuery.refetch()} />
+          <RedeemInviteForm buttonColor={buttonColor} onJoined={() => familyQuery.refetch()} />
         </ScrollView>
       );
     }
     return (
       <ScrollView contentContainerStyle={styles.container}>
-        <CreateFamilyForm onCreated={() => familyQuery.refetch()} />
+        <CreateFamilyForm buttonColor={buttonColor} onCreated={() => familyQuery.refetch()} />
         <ThemedText style={styles.orDivider}>— or —</ThemedText>
-        <RedeemInviteForm onJoined={() => familyQuery.refetch()} />
+        <RedeemInviteForm buttonColor={buttonColor} onJoined={() => familyQuery.refetch()} />
       </ScrollView>
     );
   }
@@ -104,19 +106,30 @@ export default function FamilyScreen() {
       {profile?.role === 'parent' ? (
         <>
           <AddChildForm
+            buttonColor={buttonColor}
             familyId={familyQuery.data.id}
             onAdded={() =>
               queryClient.invalidateQueries({ queryKey: ['children', familyQuery.data!.id] })
             }
           />
-          <InvitesSection familyId={familyQuery.data.id} inviterId={profile.id} />
+          <InvitesSection
+            buttonColor={buttonColor}
+            familyId={familyQuery.data.id}
+            inviterId={profile.id}
+          />
         </>
       ) : null}
     </ScrollView>
   );
 }
 
-function CreateFamilyForm({ onCreated }: { onCreated: () => void }) {
+function CreateFamilyForm({
+  buttonColor,
+  onCreated,
+}: {
+  buttonColor: string;
+  onCreated: () => void;
+}) {
   const [name, setName] = useState('');
   const [error, setError] = useState<string | null>(null);
 
@@ -146,7 +159,11 @@ function CreateFamilyForm({ onCreated }: { onCreated: () => void }) {
       {error ? <ThemedText style={styles.error}>{error}</ThemedText> : null}
 
       <Pressable
-        style={[styles.button, (!name.trim() || mutation.isPending) && styles.buttonDisabled]}
+        style={[
+          styles.button,
+          { backgroundColor: buttonColor },
+          (!name.trim() || mutation.isPending) && styles.buttonDisabled,
+        ]}
         disabled={!name.trim() || mutation.isPending}
         onPress={() => {
           setError(null);
@@ -162,7 +179,13 @@ function CreateFamilyForm({ onCreated }: { onCreated: () => void }) {
   );
 }
 
-function RedeemInviteForm({ onJoined }: { onJoined: () => void }) {
+function RedeemInviteForm({
+  buttonColor,
+  onJoined,
+}: {
+  buttonColor: string;
+  onJoined: () => void;
+}) {
   const [code, setCode] = useState('');
   const [error, setError] = useState<string | null>(null);
 
@@ -197,6 +220,7 @@ function RedeemInviteForm({ onJoined }: { onJoined: () => void }) {
       <Pressable
         style={[
           styles.button,
+          { backgroundColor: buttonColor },
           (code.trim().length !== 6 || mutation.isPending) && styles.buttonDisabled,
         ]}
         disabled={code.trim().length !== 6 || mutation.isPending}
@@ -214,7 +238,15 @@ function RedeemInviteForm({ onJoined }: { onJoined: () => void }) {
   );
 }
 
-function AddChildForm({ familyId, onAdded }: { familyId: string; onAdded: () => void }) {
+function AddChildForm({
+  buttonColor,
+  familyId,
+  onAdded,
+}: {
+  buttonColor: string;
+  familyId: string;
+  onAdded: () => void;
+}) {
   const [isOpen, setIsOpen] = useState(false);
   const [fullName, setFullName] = useState('');
   const [birthdate, setBirthdate] = useState('');
@@ -233,7 +265,9 @@ function AddChildForm({ familyId, onAdded }: { familyId: string; onAdded: () => 
 
   if (!isOpen) {
     return (
-      <Pressable style={[styles.button, styles.spacer]} onPress={() => setIsOpen(true)}>
+      <Pressable
+        style={[styles.button, { backgroundColor: buttonColor }, styles.spacer]}
+        onPress={() => setIsOpen(true)}>
         <ThemedText style={styles.buttonText}>+ Add child</ThemedText>
       </Pressable>
     );
@@ -259,7 +293,11 @@ function AddChildForm({ familyId, onAdded }: { familyId: string; onAdded: () => 
       {error ? <ThemedText style={styles.error}>{error}</ThemedText> : null}
 
       <Pressable
-        style={[styles.button, (!fullName.trim() || mutation.isPending) && styles.buttonDisabled]}
+        style={[
+          styles.button,
+          { backgroundColor: buttonColor },
+          (!fullName.trim() || mutation.isPending) && styles.buttonDisabled,
+        ]}
         disabled={!fullName.trim() || mutation.isPending}
         onPress={() => {
           setError(null);
@@ -275,7 +313,15 @@ function AddChildForm({ familyId, onAdded }: { familyId: string; onAdded: () => 
   );
 }
 
-function InvitesSection({ familyId, inviterId }: { familyId: string; inviterId: string }) {
+function InvitesSection({
+  buttonColor,
+  familyId,
+  inviterId,
+}: {
+  buttonColor: string;
+  familyId: string;
+  inviterId: string;
+}) {
   const queryClient = useQueryClient();
 
   const invitesQuery = useQuery({
@@ -299,7 +345,12 @@ function InvitesSection({ familyId, inviterId }: { familyId: string; inviterId: 
         <ThemedText style={styles.spacer}>No pending invites.</ThemedText>
       )}
 
-      <CreateInviteForm familyId={familyId} inviterId={inviterId} onCreated={invalidate} />
+      <CreateInviteForm
+        buttonColor={buttonColor}
+        familyId={familyId}
+        inviterId={inviterId}
+        onCreated={invalidate}
+      />
     </ThemedView>
   );
 }
@@ -329,10 +380,12 @@ function InviteRow({ invite, onRevoked }: { invite: Invitation; onRevoked: () =>
 }
 
 function CreateInviteForm({
+  buttonColor,
   familyId,
   inviterId,
   onCreated,
 }: {
+  buttonColor: string;
   familyId: string;
   inviterId: string;
   onCreated: () => void;
@@ -378,7 +431,11 @@ function CreateInviteForm({
       ) : null}
 
       <Pressable
-        style={[styles.button, mutation.isPending && styles.buttonDisabled]}
+        style={[
+          styles.button,
+          { backgroundColor: buttonColor },
+          mutation.isPending && styles.buttonDisabled,
+        ]}
         disabled={mutation.isPending}
         onPress={() => mutation.mutate()}>
         {mutation.isPending ? (

@@ -27,6 +27,13 @@ export const Colors = {
   },
 };
 
+// Per-role accent for primary action buttons, distinct from the tab/icon tint
+// above so parents and nannies can tell their own screens apart at a glance.
+export const RoleColors = {
+  parent: 'rgba(255, 165, 0, 1.00)',
+  nanny: tintColorLight,
+};
+
 export const Fonts = Platform.select({
   ios: {
     /** iOS `UIFontDescriptorSystemDesignDefault` */
