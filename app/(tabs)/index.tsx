@@ -1,9 +1,11 @@
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, TextInput } from 'react-native';
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
+import { CategoryStyles, Radii, RoleColors, Spacing } from '@/constants/theme';
 import { useAuth } from '@/contexts/auth-provider';
 import {
   fetchActivities,
@@ -23,8 +25,13 @@ function timeAgo(iso: string): string {
   return `${Math.floor(hours / 24)}d ago`;
 }
 
+function categoryStyle(category: string) {
+  return CategoryStyles[category] ?? CategoryStyles.other;
+}
+
 export default function HomeScreen() {
   const { profile } = useAuth();
+  const accent = profile ? RoleColors[profile.role] : RoleColors.nanny;
 
   const familyQuery = useQuery({
     queryKey: ['my-family', profile?.id],
@@ -41,7 +48,7 @@ export default function HomeScreen() {
   if (familyQuery.isLoading || childrenQuery.isLoading) {
     return (
       <ThemedView style={styles.center}>
-        <ActivityIndicator />
+        <ActivityIndicator color={accent} />
       </ThemedView>
     );
   }
@@ -49,10 +56,11 @@ export default function HomeScreen() {
   if (!familyQuery.data) {
     return (
       <ThemedView style={styles.center}>
+        <MaterialIcons name="home" size={48} color="#9AA1A6" style={styles.emptyIcon} />
         <ThemedText type="title" style={styles.title}>
           No family yet
         </ThemedText>
-        <ThemedText>
+        <ThemedText style={styles.emptyText}>
           Set up your family in the Family tab first — you&apos;ll see activity logging here once
           there&apos;s a child to log for.
         </ThemedText>
@@ -64,27 +72,32 @@ export default function HomeScreen() {
   if (children.length === 0) {
     return (
       <ThemedView style={styles.center}>
+        <MaterialIcons name="child-care" size={48} color="#9AA1A6" style={styles.emptyIcon} />
         <ThemedText type="title" style={styles.title}>
           No children yet
         </ThemedText>
-        <ThemedText>Add a child in the Family tab to start logging activities.</ThemedText>
+        <ThemedText style={styles.emptyText}>
+          Add a child in the Family tab to start logging activities.
+        </ThemedText>
       </ThemedView>
     );
   }
 
   return profile?.role === 'nanny' ? (
-    <LogActivityScreen familyChildren={children} loggedBy={profile.id} />
+    <LogActivityScreen familyChildren={children} loggedBy={profile.id} accent={accent} />
   ) : (
-    <ActivityFeedScreen familyChildren={children} />
+    <ActivityFeedScreen familyChildren={children} accent={accent} />
   );
 }
 
 function LogActivityScreen({
   familyChildren,
   loggedBy,
+  accent,
 }: {
   familyChildren: Child[];
   loggedBy: string;
+  accent: string;
 }) {
   const [selectedChildId, setSelectedChildId] = useState(familyChildren[0].id);
   const [noteText, setNoteText] = useState('');
@@ -122,44 +135,62 @@ function LogActivityScreen({
 
       {familyChildren.length > 1 ? (
         <ThemedView style={styles.chipRow}>
-          {familyChildren.map((child) => (
-            <Pressable
-              key={child.id}
-              style={[styles.chip, selectedChildId === child.id && styles.chipSelected]}
-              onPress={() => setSelectedChildId(child.id)}>
-              <ThemedText style={selectedChildId === child.id ? styles.chipTextSelected : undefined}>
-                {child.full_name}
-              </ThemedText>
-            </Pressable>
-          ))}
+          {familyChildren.map((child) => {
+            const selected = selectedChildId === child.id;
+            return (
+              <Pressable
+                key={child.id}
+                style={({ pressed }) => [
+                  styles.chip,
+                  selected && { backgroundColor: accent, borderColor: accent },
+                  pressed && styles.pressed,
+                ]}
+                onPress={() => setSelectedChildId(child.id)}>
+                <ThemedText style={selected ? styles.chipTextSelected : undefined}>
+                  {child.full_name}
+                </ThemedText>
+              </Pressable>
+            );
+          })}
         </ThemedView>
       ) : (
         <ThemedText style={styles.spacer}>{selectedChild?.full_name}</ThemedText>
       )}
 
-      {confirmation ? <ThemedText style={styles.confirmation}>✓ {confirmation}</ThemedText> : null}
+      {confirmation ? (
+        <ThemedView style={styles.confirmationBanner}>
+          <MaterialIcons name="check-circle" size={18} color="#2a9d3f" />
+          <ThemedText style={styles.confirmation}>{confirmation}</ThemedText>
+        </ThemedView>
+      ) : null}
 
       {templatesQuery.isLoading ? (
-        <ActivityIndicator style={styles.spacer} />
+        <ActivityIndicator color={accent} style={styles.spacer} />
       ) : (
-        <ThemedView style={[styles.chipRow, styles.spacer]}>
+        <ThemedView style={[styles.templateGrid, styles.spacer]}>
           {templatesQuery.data
             ?.filter((t) => t.key !== 'custom')
-            .map((template) => (
-              <Pressable
-                key={template.key}
-                style={styles.templateChip}
-                disabled={logMutation.isPending}
-                onPress={() =>
-                  logMutation.mutate({
-                    templateKey: template.key,
-                    category: template.category,
-                    note: null,
-                  })
-                }>
-                <ThemedText>{template.label}</ThemedText>
-              </Pressable>
-            ))}
+            .map((template) => {
+              const { icon, color } = categoryStyle(template.category);
+              return (
+                <Pressable
+                  key={template.key}
+                  style={({ pressed }) => [styles.templateChip, pressed && styles.pressed]}
+                  disabled={logMutation.isPending}
+                  onPress={() =>
+                    logMutation.mutate({
+                      templateKey: template.key,
+                      category: template.category,
+                      note: null,
+                    })
+                  }>
+                  <View style={[styles.templateIconBadge, { backgroundColor: color + '22' }]}>
+                    <MaterialIcons name={icon as never} size={20} color={color} />
+                  </View>
+                  <ThemedText style={styles.templateLabel}>{template.label}</ThemedText>
+                </Pressable>
+              );
+            })}
         </ThemedView>
       )}
 
@@ -172,7 +203,12 @@ function LogActivityScreen({
           onChangeText={setNoteText}
         />
         <Pressable
-          style={[styles.button, (!noteText.trim() || logMutation.isPending) && styles.buttonDisabled]}
+          style={({ pressed }) => [
+            styles.button,
+            { backgroundColor: accent },
+            (!noteText.trim() || logMutation.isPending) && styles.buttonDisabled,
+            pressed && styles.pressed,
+          ]}
           disabled={!noteText.trim() || logMutation.isPending}
           onPress={() => {
             logMutation.mutate(
@@ -196,7 +232,13 @@ function LogActivityScreen({
   );
 }
 
-function ActivityFeedScreen({ familyChildren }: { familyChildren: Child[] }) {
+function ActivityFeedScreen({
+  familyChildren,
+  accent,
+}: {
+  familyChildren: Child[];
+  accent: string;
+}) {
   const [categoryFilter, setCategoryFilter] = useState<string | null>(null);
   const childIds = familyChildren.map((c) => c.id);
   const queryClient = useQueryClient();
@@ -226,25 +268,43 @@ function ActivityFeedScreen({ familyChildren }: { familyChildren: Child[] }) {
       {categories.length > 0 ? (
         <ThemedView style={[styles.chipRow, styles.spacer]}>
           <Pressable
-            style={[styles.chip, !categoryFilter && styles.chipSelected]}
+            style={({ pressed }) => [
+              styles.chip,
+              !categoryFilter && { backgroundColor: accent, borderColor: accent },
+              pressed && styles.pressed,
+            ]}
             onPress={() => setCategoryFilter(null)}>
             <ThemedText style={!categoryFilter ? styles.chipTextSelected : undefined}>All</ThemedText>
           </Pressable>
-          {categories.map((category) => (
-            <Pressable
-              key={category}
-              style={[styles.chip, categoryFilter === category && styles.chipSelected]}
-              onPress={() => setCategoryFilter(category)}>
-              <ThemedText style={categoryFilter === category ? styles.chipTextSelected : undefined}>
-                {category}
-              </ThemedText>
-            </Pressable>
-          ))}
+          {categories.map((category) => {
+            const selected = categoryFilter === category;
+            const { icon, color } = categoryStyle(category);
+            return (
+              <Pressable
+                key={category}
+                style={({ pressed }) => [
+                  styles.chip,
+                  styles.categoryChip,
+                  selected && { backgroundColor: color, borderColor: color },
+                  pressed && styles.pressed,
+                ]}
+                onPress={() => setCategoryFilter(category)}>
+                <MaterialIcons
+                  name={icon as never}
+                  size={14}
+                  color={selected ? '#fff' : color}
+                />
+                <ThemedText style={selected ? styles.chipTextSelected : undefined}>
+                  {category}
+                </ThemedText>
+              </Pressable>
+            );
+          })}
         </ThemedView>
       ) : null}
 
       {activitiesQuery.isLoading ? (
-        <ActivityIndicator style={styles.spacer} />
+        <ActivityIndicator color={accent} style={styles.spacer} />
       ) : (
         <ActivityList activities={filtered} showChildName={familyChildren.length > 1} />
       )}
@@ -260,104 +320,176 @@ function ActivityList({
   showChildName: boolean;
 }) {
   if (activities.length === 0) {
-    return <ThemedText style={styles.spacer}>No activities logged yet.</ThemedText>;
+    return (
+      <ThemedView style={[styles.center, styles.spacer]}>
+        <MaterialIcons name="auto-stories" size={40} color="#9AA1A6" style={styles.emptyIcon} />
+        <ThemedText style={styles.emptyText}>No activities logged yet.</ThemedText>
+      </ThemedView>
+    );
   }
 
   return (
     <ThemedView style={styles.spacer}>
-      {activities.map((activity) => (
-        <ThemedView key={activity.id} style={styles.activityRow}>
-          <ThemedText type="defaultSemiBold">
-            {activity.activity_templates?.label ?? activity.note ?? activity.category}
-            {showChildName && activity.children ? ` · ${activity.children.full_name}` : ''}
-          </ThemedText>
-          {activity.template_key === 'custom' && activity.note ? (
-            <ThemedText>{activity.note}</ThemedText>
-          ) : null}
-          <ThemedText style={styles.timeText}>{timeAgo(activity.occurred_at)}</ThemedText>
-        </ThemedView>
-      ))}
+      {activities.map((activity) => {
+        const { icon, color } = categoryStyle(activity.category);
+        return (
+          <ThemedView key={activity.id} style={styles.activityCard}>
+            <View style={[styles.activityIconBadge, { backgroundColor: color + '22' }]}>
+              <MaterialIcons name={icon as never} size={20} color={color} />
+            </View>
+            <ThemedView style={styles.activityBody}>
+              <ThemedText type="defaultSemiBold">
+                {activity.activity_templates?.label ?? activity.note ?? activity.category}
+                {showChildName && activity.children ? ` · ${activity.children.full_name}` : ''}
+              </ThemedText>
+              {activity.template_key === 'custom' && activity.note ? (
+                <ThemedText style={styles.noteText}>{activity.note}</ThemedText>
+              ) : null}
+              <ThemedText style={styles.timeText}>{timeAgo(activity.occurred_at)}</ThemedText>
+            </ThemedView>
+          </ThemedView>
+        );
+      })}
     </ThemedView>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
-    padding: 24,
-    gap: 12,
+    padding: Spacing.xl,
+    gap: Spacing.md,
   },
   center: {
     flex: 1,
     justifyContent: 'center',
-    padding: 24,
-    gap: 12,
+    alignItems: 'center',
+    padding: Spacing.xl,
+    gap: Spacing.md,
+  },
+  emptyIcon: {
+    marginBottom: Spacing.xs,
+  },
+  emptyText: {
+    textAlign: 'center',
+    opacity: 0.7,
   },
   title: {
-    marginBottom: 4,
+    marginBottom: Spacing.xs,
   },
   spacer: {
-    marginTop: 16,
+    marginTop: Spacing.lg,
+  },
+  confirmationBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.xs,
+    marginTop: Spacing.sm,
+    backgroundColor: 'rgba(42, 157, 63, 0.12)',
+    borderRadius: Radii.sm,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+    alignSelf: 'flex-start',
   },
   confirmation: {
     color: '#2a9d3f',
-    marginTop: 8,
+    fontWeight: '600',
   },
   input: {
     borderWidth: 1,
     borderColor: '#687076',
-    borderRadius: 8,
+    borderRadius: Radii.sm,
     paddingHorizontal: 14,
     paddingVertical: 12,
     fontSize: 16,
-    marginBottom: 8,
+    marginBottom: Spacing.sm,
   },
   button: {
-    backgroundColor: '#0a7ea4',
-    borderRadius: 8,
+    borderRadius: Radii.sm,
     paddingVertical: 14,
     alignItems: 'center',
   },
   buttonDisabled: {
-    opacity: 0.6,
+    opacity: 0.5,
   },
   buttonText: {
     color: '#fff',
     fontWeight: '600',
   },
+  pressed: {
+    opacity: 0.75,
+  },
   chipRow: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 8,
+    gap: Spacing.sm,
   },
   chip: {
     borderWidth: 1,
     borderColor: '#687076',
-    borderRadius: 16,
+    borderRadius: Radii.pill,
     paddingHorizontal: 14,
     paddingVertical: 8,
   },
-  chipSelected: {
-    backgroundColor: '#0a7ea4',
-    borderColor: '#0a7ea4',
+  categoryChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
   },
   chipTextSelected: {
     color: '#fff',
     fontWeight: '600',
   },
-  templateChip: {
-    borderWidth: 1,
-    borderColor: '#0a7ea4',
-    borderRadius: 16,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
+  templateGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: Spacing.sm,
   },
-  activityRow: {
-    paddingVertical: 10,
-    borderBottomWidth: 1,
-    borderBottomColor: '#e0e0e0',
+  templateChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+    borderWidth: 1,
+    borderColor: 'rgba(104, 112, 118, 0.25)',
+    borderRadius: Radii.lg,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+  },
+  templateIconBadge: {
+    width: 32,
+    height: 32,
+    borderRadius: Radii.pill,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  templateLabel: {
+    fontSize: 14,
+  },
+  activityCard: {
+    flexDirection: 'row',
+    gap: Spacing.md,
+    paddingVertical: Spacing.md,
+    paddingHorizontal: Spacing.md,
+    borderRadius: Radii.md,
+    backgroundColor: 'rgba(104, 112, 118, 0.06)',
+    marginBottom: Spacing.sm,
+  },
+  activityIconBadge: {
+    width: 40,
+    height: 40,
+    borderRadius: Radii.pill,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  activityBody: {
+    flex: 1,
+    gap: 2,
+  },
+  noteText: {
+    opacity: 0.8,
   },
   timeText: {
     fontSize: 12,
     opacity: 0.6,
+    marginTop: 2,
   },
 });

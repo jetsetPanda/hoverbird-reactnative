@@ -1,15 +1,11 @@
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { Link } from 'expo-router';
 import { useState } from 'react';
-import {
-  ActivityIndicator,
-  Pressable,
-  StyleSheet,
-  TextInput,
-  View,
-} from 'react-native';
+import { ActivityIndicator, Pressable, StyleSheet, TextInput, View } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
+import { Radii, Spacing } from '@/constants/theme';
 import { useAuth } from '@/contexts/auth-provider';
 
 export default function SignInScreen() {
@@ -31,34 +27,52 @@ export default function SignInScreen() {
 
   return (
     <ThemedView style={styles.container}>
+      <View style={styles.logoBadge}>
+        <MaterialIcons name="family-restroom" size={36} color="#0a7ea4" />
+      </View>
       <ThemedText type="title" style={styles.title}>
         Welcome back
       </ThemedText>
+      <ThemedText style={styles.subtitle}>Sign in to keep up with the day&apos;s activities.</ThemedText>
 
-      <TextInput
-        style={styles.input}
-        placeholder="Email"
-        placeholderTextColor="#687076"
-        autoCapitalize="none"
-        keyboardType="email-address"
-        autoComplete="email"
-        value={email}
-        onChangeText={setEmail}
-      />
-      <TextInput
-        style={styles.input}
-        placeholder="Password"
-        placeholderTextColor="#687076"
-        secureTextEntry
-        autoComplete="password"
-        value={password}
-        onChangeText={setPassword}
-      />
+      <View style={styles.inputRow}>
+        <MaterialIcons name="mail-outline" size={20} color="#687076" style={styles.inputIcon} />
+        <TextInput
+          style={styles.input}
+          placeholder="Email"
+          placeholderTextColor="#687076"
+          autoCapitalize="none"
+          keyboardType="email-address"
+          autoComplete="email"
+          value={email}
+          onChangeText={setEmail}
+        />
+      </View>
+      <View style={styles.inputRow}>
+        <MaterialIcons name="lock-outline" size={20} color="#687076" style={styles.inputIcon} />
+        <TextInput
+          style={styles.input}
+          placeholder="Password"
+          placeholderTextColor="#687076"
+          secureTextEntry
+          autoComplete="password"
+          value={password}
+          onChangeText={setPassword}
+        />
+      </View>
 
-      {error ? <ThemedText style={styles.error}>{error}</ThemedText> : null}
+      {error ? (
+        <View style={styles.errorBanner}>
+          <MaterialIcons name="error-outline" size={16} color="#d33" />
+          <ThemedText style={styles.error}>{error}</ThemedText>
+        </View>
+      ) : null}
 
       <Pressable
-        style={[styles.button, isSubmitting && styles.buttonDisabled]}
+        style={({ pressed }) => [
+          styles.button,
+          (isSubmitting || pressed) && styles.buttonDisabled,
+        ]}
         disabled={isSubmitting || !email || !password}
         onPress={handleSignIn}>
         {isSubmitting ? (
@@ -82,29 +96,58 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     justifyContent: 'center',
-    padding: 24,
-    gap: 12,
+    padding: Spacing.xl,
+    gap: Spacing.md,
+  },
+  logoBadge: {
+    width: 64,
+    height: 64,
+    borderRadius: Radii.lg,
+    backgroundColor: 'rgba(10, 126, 164, 0.12)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    alignSelf: 'center',
+    marginBottom: Spacing.sm,
   },
   title: {
-    marginBottom: 12,
+    textAlign: 'center',
   },
-  input: {
+  subtitle: {
+    textAlign: 'center',
+    opacity: 0.7,
+    marginBottom: Spacing.sm,
+  },
+  inputRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
     borderWidth: 1,
     borderColor: '#687076',
-    borderRadius: 8,
+    borderRadius: Radii.sm,
     paddingHorizontal: 14,
+  },
+  inputIcon: {
+    marginRight: Spacing.sm,
+  },
+  input: {
+    flex: 1,
     paddingVertical: 12,
     fontSize: 16,
   },
+  errorBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
   error: {
     color: '#d33',
+    flexShrink: 1,
   },
   button: {
     backgroundColor: '#0a7ea4',
-    borderRadius: 8,
+    borderRadius: Radii.sm,
     paddingVertical: 14,
     alignItems: 'center',
-    marginTop: 8,
+    marginTop: Spacing.sm,
   },
   buttonDisabled: {
     opacity: 0.6,
@@ -116,6 +159,6 @@ const styles = StyleSheet.create({
   footer: {
     flexDirection: 'row',
     justifyContent: 'center',
-    marginTop: 16,
+    marginTop: Spacing.lg,
   },
 });

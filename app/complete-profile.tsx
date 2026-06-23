@@ -1,8 +1,10 @@
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { useState } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, TextInput } from 'react-native';
+import { ActivityIndicator, Pressable, StyleSheet, TextInput, View } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
+import { Radii, RoleColors } from '@/constants/theme';
 import { useAuth, type UserRole } from '@/contexts/auth-provider';
 
 export default function CompleteProfileScreen() {
@@ -47,25 +49,52 @@ export default function CompleteProfileScreen() {
       </ThemedText>
       <ThemedView style={styles.roleRow}>
         <Pressable
-          style={[styles.roleOption, role === 'parent' && styles.roleOptionSelected]}
+          style={[
+            styles.roleOption,
+            role === 'parent' && {
+              backgroundColor: RoleColors.parent,
+              borderColor: RoleColors.parent,
+            },
+          ]}
           onPress={() => setRole('parent')}>
+          <MaterialIcons
+            name="escalator-warning"
+            size={22}
+            color={role === 'parent' ? '#fff' : '#687076'}
+          />
           <ThemedText style={role === 'parent' ? styles.roleTextSelected : undefined}>
             Parent
           </ThemedText>
         </Pressable>
         <Pressable
-          style={[styles.roleOption, role === 'nanny' && styles.roleOptionSelected]}
+          style={[
+            styles.roleOption,
+            role === 'nanny' && {
+              backgroundColor: RoleColors.nanny,
+              borderColor: RoleColors.nanny,
+            },
+          ]}
           onPress={() => setRole('nanny')}>
+          <MaterialIcons
+            name="volunteer-activism"
+            size={22}
+            color={role === 'nanny' ? '#fff' : '#687076'}
+          />
           <ThemedText style={role === 'nanny' ? styles.roleTextSelected : undefined}>
             Nanny
           </ThemedText>
         </Pressable>
       </ThemedView>
 
-      {error ? <ThemedText style={styles.error}>{error}</ThemedText> : null}
+      {error ? (
+        <View style={styles.errorBanner}>
+          <MaterialIcons name="error-outline" size={16} color="#d33" />
+          <ThemedText style={styles.error}>{error}</ThemedText>
+        </View>
+      ) : null}
 
       <Pressable
-        style={[styles.button, isSubmitting && styles.buttonDisabled]}
+        style={({ pressed }) => [styles.button, (isSubmitting || pressed) && styles.buttonDisabled]}
         disabled={isSubmitting || !fullName.trim() || !role}
         onPress={handleSubmit}>
         {isSubmitting ? (
@@ -114,20 +143,23 @@ const styles = StyleSheet.create({
     flex: 1,
     borderWidth: 1,
     borderColor: '#687076',
-    borderRadius: 8,
+    borderRadius: Radii.sm,
     paddingVertical: 14,
     alignItems: 'center',
-  },
-  roleOptionSelected: {
-    backgroundColor: '#0a7ea4',
-    borderColor: '#0a7ea4',
+    gap: 6,
   },
   roleTextSelected: {
     color: '#fff',
     fontWeight: '600',
   },
+  errorBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
   error: {
     color: '#d33',
+    flexShrink: 1,
   },
   button: {
     backgroundColor: '#0a7ea4',
