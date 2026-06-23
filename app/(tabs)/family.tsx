@@ -90,7 +90,7 @@ export default function FamilyScreen() {
   }
 
   return (
-    <ScrollView contentContainerStyle={styles.container}>
+    <ScrollView contentContainerStyle={[styles.container, { paddingTop: insets.top + Spacing.xl }]}>
       <ThemedText type="title">{familyQuery.data.name}</ThemedText>
 
       {childrenQuery.isLoading ? (
