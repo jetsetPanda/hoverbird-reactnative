@@ -1,11 +1,17 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, TextInput } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { useAuth } from '@/contexts/auth-provider';
-import { fetchActivities, fetchTemplates, logActivity, type Activity } from '@/lib/activities';
+import {
+  fetchActivities,
+  fetchTemplates,
+  logActivity,
+  subscribeToActivities,
+  type Activity,
+} from '@/lib/activities';
 import { fetchChildren, fetchMyFamily, type Child } from '@/lib/families';
 
 function timeAgo(iso: string): string {
@@ -94,6 +100,8 @@ function LogActivityScreen({
   const invalidate = () => {
     queryClient.invalidateQueries({ queryKey: ['activities', selectedChildId] });
   };
+
+  useEffect(() => subscribeToActivities([selectedChildId], invalidate), [selectedChildId]);
 
   const logMutation = useMutation({
     mutationFn: (params: { templateKey: string | null; category: string; note: string | null }) =>
@@ -191,11 +199,20 @@ function LogActivityScreen({
 function ActivityFeedScreen({ familyChildren }: { familyChildren: Child[] }) {
   const [categoryFilter, setCategoryFilter] = useState<string | null>(null);
   const childIds = familyChildren.map((c) => c.id);
+  const queryClient = useQueryClient();
 
   const activitiesQuery = useQuery({
     queryKey: ['activities', ...childIds],
     queryFn: () => fetchActivities(childIds),
   });
+
+  useEffect(
+    () =>
+      subscribeToActivities(childIds, () =>
+        queryClient.invalidateQueries({ queryKey: ['activities', ...childIds] })
+      ),
+    [childIds.join(',')]
+  );
 
   const categories = Array.from(new Set(activitiesQuery.data?.map((a) => a.category) ?? []));
   const filtered = categoryFilter

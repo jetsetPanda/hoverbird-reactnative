@@ -45,6 +45,29 @@ export async function fetchActivities(childIds: string[]): Promise<Activity[]> {
   return data as Activity[];
 }
 
+// Live-updates the feed: invalidating on every change (rather than patching
+// the cache directly) keeps this in sync with whatever filters/joins the
+// query already applies.
+export function subscribeToActivities(childIds: string[], onChange: () => void) {
+  if (childIds.length === 0) return () => {};
+
+  const channel = supabase
+    .channel(`activities-${childIds.join(',')}`)
+    .on(
+      'postgres_changes',
+      { event: '*', schema: 'public', table: 'activities' },
+      (payload) => {
+        const childId = (payload.new as { child_id?: string })?.child_id;
+        if (childId && childIds.includes(childId)) onChange();
+      }
+    )
+    .subscribe();
+
+  return () => {
+    supabase.removeChannel(channel);
+  };
+}
+
 export async function logActivity(params: {
   childId: string;
   loggedBy: string;

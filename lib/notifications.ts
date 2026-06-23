@@ -7,6 +7,18 @@ import { supabase } from '@/lib/supabase';
 
 const projectId = Constants.expoConfig?.extra?.eas?.projectId;
 
+// Without this, Android/iOS won't display a banner for notifications that
+// arrive while the app is in the foreground (they'd otherwise only show up
+// silently in the notification center, easy to miss while testing).
+Notifications.setNotificationHandler({
+  handleNotification: async () => ({
+    shouldPlaySound: true,
+    shouldSetBadge: false,
+    shouldShowBanner: true,
+    shouldShowList: true,
+  }),
+});
+
 // Registers the current device for push notifications and upserts its Expo
 // push token into push_tokens for the signed-in profile. No-ops on web and on
 // simulators/emulators (no APNs/FCM credentials), and if the EAS project
