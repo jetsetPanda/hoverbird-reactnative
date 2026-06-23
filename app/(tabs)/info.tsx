@@ -1,5 +1,5 @@
 import { Image } from 'expo-image';
-import { Platform, StyleSheet } from 'react-native';
+import { Platform, Pressable, StyleSheet } from 'react-native';
 
 import { Collapsible } from '@/components/ui/collapsible';
 import { ExternalLink } from '@/components/external-link';
@@ -8,8 +8,11 @@ import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { Fonts } from '@/constants/theme';
+import { useAuth } from '@/contexts/auth-provider';
 
 export default function TabTwoScreen() {
+    const { profile, signOut } = useAuth();
+
     return (
         <ParallaxScrollView
             headerBackgroundColor={{ light: '#D0D0D0', dark: '#3fb5b5' }}
@@ -30,6 +33,15 @@ export default function TabTwoScreen() {
                     Care Resources
                 </ThemedText>
             </ThemedView>
+            <ThemedView style={styles.titleContainer}>
+                <ThemedText>
+                    Signed in as <ThemedText type="defaultSemiBold">{profile?.full_name}</ThemedText> (
+                    {profile?.role})
+                </ThemedText>
+            </ThemedView>
+            <Pressable onPress={signOut}>
+                <ThemedText type="link">Sign out</ThemedText>
+            </Pressable>
             <ThemedText>This app includes example code to help you get started.</ThemedText>
             <Collapsible title="File-based routing">
                 <ThemedText>
