@@ -1,5 +1,6 @@
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { Pressable, StyleSheet, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
@@ -8,10 +9,11 @@ import { useAuth } from '@/contexts/auth-provider';
 
 export default function AccountScreen() {
   const { profile, signOut } = useAuth();
+  const insets = useSafeAreaInsets();
   const accent = profile ? RoleColors[profile.role] : RoleColors.nanny;
 
   return (
-    <ThemedView style={styles.container}>
+    <ThemedView style={[styles.container, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>
       <View style={[styles.avatar, { backgroundColor: accent + '22' }]}>
         <ThemedText style={[styles.avatarText, { color: accent }]}>
           {profile?.full_name?.charAt(0).toUpperCase() ?? '?'}

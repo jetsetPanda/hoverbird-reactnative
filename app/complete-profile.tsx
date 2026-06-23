@@ -1,6 +1,7 @@
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, TextInput, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
@@ -9,6 +10,7 @@ import { useAuth, type UserRole } from '@/contexts/auth-provider';
 
 export default function CompleteProfileScreen() {
   const { completeProfile, signOut } = useAuth();
+  const insets = useSafeAreaInsets();
   const [fullName, setFullName] = useState('');
   const [role, setRole] = useState<UserRole | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -27,7 +29,7 @@ export default function CompleteProfileScreen() {
   }
 
   return (
-    <ThemedView style={styles.container}>
+    <ThemedView style={[styles.container, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>
       <ThemedText type="title" style={styles.title}>
         Tell us about you
       </ThemedText>

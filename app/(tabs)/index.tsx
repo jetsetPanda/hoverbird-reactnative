@@ -1,15 +1,8 @@
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
-import {
-  ActivityIndicator,
-  Dimensions,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  TextInput,
-  View,
-} from 'react-native';
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
@@ -39,6 +32,7 @@ function categoryStyle(category: string) {
 
 export default function HomeScreen() {
   const { profile } = useAuth();
+  const insets = useSafeAreaInsets();
   const accent = profile ? RoleColors[profile.role] : RoleColors.nanny;
 
   const familyQuery = useQuery({
@@ -55,7 +49,7 @@ export default function HomeScreen() {
 
   if (familyQuery.isLoading || childrenQuery.isLoading) {
     return (
-      <ThemedView style={styles.center}>
+      <ThemedView style={[styles.center, { paddingTop: insets.top }]}>
         <ActivityIndicator color={accent} />
       </ThemedView>
     );
@@ -63,7 +57,7 @@ export default function HomeScreen() {
 
   if (!familyQuery.data) {
     return (
-      <ThemedView style={styles.center}>
+      <ThemedView style={[styles.center, { paddingTop: insets.top }]}>
         <MaterialIcons name="home" size={48} color="#9AA1A6" style={styles.emptyIcon} />
         <ThemedText type="title" style={styles.title}>
           No family yet
@@ -79,7 +73,7 @@ export default function HomeScreen() {
   const children = childrenQuery.data ?? [];
   if (children.length === 0) {
     return (
-      <ThemedView style={styles.center}>
+      <ThemedView style={[styles.center, { paddingTop: insets.top }]}>
         <MaterialIcons name="child-care" size={48} color="#9AA1A6" style={styles.emptyIcon} />
         <ThemedText type="title" style={styles.title}>
           No children yet
@@ -110,6 +104,7 @@ function LogActivityScreen({
   const [selectedChildId, setSelectedChildId] = useState(familyChildren[0].id);
   const [noteText, setNoteText] = useState('');
   const [confirmation, setConfirmation] = useState<string | null>(null);
+  const insets = useSafeAreaInsets();
   const queryClient = useQueryClient();
 
   const templatesQuery = useQuery({ queryKey: ['activity-templates'], queryFn: fetchTemplates });
@@ -138,7 +133,7 @@ function LogActivityScreen({
   const selectedChild = familyChildren.find((c) => c.id === selectedChildId);
 
   return (
-    <ScrollView contentContainerStyle={styles.container}>
+    <ScrollView contentContainerStyle={[styles.container, { paddingTop: insets.top + Spacing.xl }]}>
       <ThemedText type="title">Log an activity</ThemedText>
 
       {familyChildren.length > 1 ? (
@@ -249,6 +244,7 @@ function ActivityFeedScreen({
 }) {
   const [categoryFilter, setCategoryFilter] = useState<string | null>(null);
   const childIds = familyChildren.map((c) => c.id);
+  const insets = useSafeAreaInsets();
   const queryClient = useQueryClient();
 
   const activitiesQuery = useQuery({
@@ -270,7 +266,7 @@ function ActivityFeedScreen({
     : activitiesQuery.data ?? [];
 
   return (
-    <ScrollView contentContainerStyle={styles.container}>
+    <ScrollView contentContainerStyle={[styles.container, { paddingTop: insets.top + Spacing.xl }]}>
       <ThemedText type="title">Activity feed</ThemedText>
 
       {categories.length > 0 ? (
@@ -365,8 +361,6 @@ function ActivityList({
 const styles = StyleSheet.create({
   container: {
     padding: Spacing.xl,
-    // ~5vh — keeps content clear of the status bar / notch / camera cutout
-    paddingTop: Dimensions.get('window').height * 0.05,
     gap: Spacing.md,
   },
   center: {

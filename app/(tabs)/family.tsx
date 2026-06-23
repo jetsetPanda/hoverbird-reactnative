@@ -1,15 +1,8 @@
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
 import { useState } from 'react';
-import {
-  ActivityIndicator,
-  Dimensions,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  TextInput,
-  View,
-} from 'react-native';
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
@@ -42,6 +35,7 @@ function formatAge(birthdate: string | null): string | null {
 
 export default function FamilyScreen() {
   const { profile } = useAuth();
+  const insets = useSafeAreaInsets();
   const queryClient = useQueryClient();
   const buttonColor = profile ? RoleColors[profile.role] : RoleColors.nanny;
 
@@ -59,7 +53,7 @@ export default function FamilyScreen() {
 
   if (familyQuery.isLoading) {
     return (
-      <ThemedView style={styles.center}>
+      <ThemedView style={[styles.center, { paddingTop: insets.top }]}>
         <ActivityIndicator color={buttonColor} />
       </ThemedView>
     );
@@ -68,7 +62,7 @@ export default function FamilyScreen() {
   if (!familyQuery.data) {
     if (profile?.role === 'nanny') {
       return (
-        <ScrollView contentContainerStyle={styles.container}>
+        <ScrollView contentContainerStyle={[styles.container, { paddingTop: insets.top + Spacing.xl }]}>
           <View style={styles.logoBadge}>
             <MaterialIcons name="group-add" size={32} color={buttonColor} />
           </View>
@@ -84,7 +78,7 @@ export default function FamilyScreen() {
       );
     }
     return (
-      <ScrollView contentContainerStyle={styles.container}>
+      <ScrollView contentContainerStyle={[styles.container, { paddingTop: insets.top + Spacing.xl }]}>
         <View style={styles.logoBadge}>
           <MaterialIcons name="home" size={32} color={buttonColor} />
         </View>
@@ -511,8 +505,6 @@ function CreateInviteForm({
 const styles = StyleSheet.create({
   container: {
     padding: Spacing.xl,
-    // ~5vh — keeps content clear of the status bar / notch / camera cutout
-    paddingTop: Dimensions.get('window').height * 0.05,
     gap: Spacing.md,
   },
   section: {
