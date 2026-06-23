@@ -1,12 +1,21 @@
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
 import { useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, TextInput } from 'react-native';
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { RoleColors } from '@/constants/theme';
+import { Radii, RoleColors, Spacing } from '@/constants/theme';
 import { useAuth, type UserRole } from '@/contexts/auth-provider';
-import { addChild, createFamily, fetchChildren, fetchMyFamily } from '@/lib/families';
+import {
+  addChild,
+  createFamily,
+  fetchChildren,
+  fetchMyFamily,
+  updateChild,
+  type Child,
+} from '@/lib/families';
 import {
   createInvite,
   fetchInvites,
@@ -33,6 +42,7 @@ function formatAge(birthdate: string | null): string | null {
 
 export default function FamilyScreen() {
   const { profile } = useAuth();
+  const insets = useSafeAreaInsets();
   const queryClient = useQueryClient();
   const buttonColor = profile ? RoleColors[profile.role] : RoleColors.nanny;
 
@@ -50,8 +60,8 @@ export default function FamilyScreen() {
 
   if (familyQuery.isLoading) {
     return (
-      <ThemedView style={styles.center}>
-        <ActivityIndicator />
+      <ThemedView style={[styles.center, { paddingTop: insets.top }]}>
+        <ActivityIndicator color={buttonColor} />
       </ThemedView>
     );
   }
@@ -59,7 +69,10 @@ export default function FamilyScreen() {
   if (!familyQuery.data) {
     if (profile?.role === 'nanny') {
       return (
-        <ScrollView contentContainerStyle={styles.container}>
+        <ScrollView contentContainerStyle={[styles.container, { paddingTop: insets.top + Spacing.xl }]}>
+          <View style={styles.logoBadge}>
+            <MaterialIcons name="group-add" size={32} color={buttonColor} />
+          </View>
           <ThemedText type="title" style={styles.title}>
             No family yet
           </ThemedText>
@@ -72,7 +85,10 @@ export default function FamilyScreen() {
       );
     }
     return (
-      <ScrollView contentContainerStyle={styles.container}>
+      <ScrollView contentContainerStyle={[styles.container, { paddingTop: insets.top + Spacing.xl }]}>
+        <View style={styles.logoBadge}>
+          <MaterialIcons name="home" size={32} color={buttonColor} />
+        </View>
         <CreateFamilyForm buttonColor={buttonColor} onCreated={() => familyQuery.refetch()} />
         <ThemedText style={styles.orDivider}>— or —</ThemedText>
         <RedeemInviteForm buttonColor={buttonColor} onJoined={() => familyQuery.refetch()} />
@@ -81,24 +97,27 @@ export default function FamilyScreen() {
   }
 
   return (
-    <ScrollView contentContainerStyle={styles.container}>
+    <ScrollView contentContainerStyle={[styles.container, { paddingTop: insets.top + Spacing.xl }]}>
       <ThemedText type="title">{familyQuery.data.name}</ThemedText>
 
       {childrenQuery.isLoading ? (
-        <ActivityIndicator style={styles.spacer} />
+        <ActivityIndicator color={buttonColor} style={styles.spacer} />
       ) : (
-        <ThemedView style={styles.spacer}>
+        <ThemedView style={styles.childList}>
           {childrenQuery.data?.length ? (
             childrenQuery.data.map((child) => (
-              <ThemedView key={child.id} style={styles.childRow}>
-                <ThemedText type="defaultSemiBold">{child.full_name}</ThemedText>
-                {formatAge(child.birthdate) ? (
-                  <ThemedText>{formatAge(child.birthdate)}</ThemedText>
-                ) : null}
-              </ThemedView>
+              <ChildRow
+                key={child.id}
+                child={child}
+                buttonColor={buttonColor}
+                canEdit={profile?.role === 'parent'}
+                onUpdated={() =>
+                  queryClient.invalidateQueries({ queryKey: ['children', familyQuery.data!.id] })
+                }
+              />
             ))
           ) : (
-            <ThemedText>No children added yet.</ThemedText>
+            <ThemedText style={styles.emptyText}>No children added yet.</ThemedText>
           )}
         </ThemedView>
       )}
@@ -120,6 +139,112 @@ export default function FamilyScreen() {
         </>
       ) : null}
     </ScrollView>
+  );
+}
+
+function ChildRow({
+  child,
+  buttonColor,
+  canEdit,
+  onUpdated,
+}: {
+  child: Child;
+  buttonColor: string;
+  canEdit: boolean;
+  onUpdated: () => void;
+}) {
+  const [isEditing, setIsEditing] = useState(false);
+  const [fullName, setFullName] = useState(child.full_name);
+  const [birthdate, setBirthdate] = useState(child.birthdate ?? '');
+  const [error, setError] = useState<string | null>(null);
+
+  const mutation = useMutation({
+    mutationFn: () => updateChild(child.id, fullName.trim(), birthdate.trim() || null),
+    onSuccess: () => {
+      setError(null);
+      setIsEditing(false);
+      onUpdated();
+    },
+    onError: (err: Error) => setError(err.message),
+  });
+
+  if (isEditing) {
+    return (
+      <ThemedView style={styles.editCard}>
+        <TextInput
+          style={styles.input}
+          placeholder="Child's name"
+          placeholderTextColor="#687076"
+          value={fullName}
+          onChangeText={setFullName}
+        />
+        <TextInput
+          style={styles.input}
+          placeholder="Birthdate YYYY-MM-DD (optional)"
+          placeholderTextColor="#687076"
+          value={birthdate}
+          onChangeText={setBirthdate}
+        />
+
+        {error ? <ThemedText style={styles.error}>{error}</ThemedText> : null}
+
+        <ThemedView style={styles.editActions}>
+          <Pressable
+            style={({ pressed }) => [styles.secondaryButton, pressed && styles.buttonDisabled]}
+            disabled={mutation.isPending}
+            onPress={() => {
+              setFullName(child.full_name);
+              setBirthdate(child.birthdate ?? '');
+              setError(null);
+              setIsEditing(false);
+            }}>
+            <ThemedText style={styles.secondaryButtonText}>Cancel</ThemedText>
+          </Pressable>
+          <Pressable
+            style={({ pressed }) => [
+              styles.button,
+              styles.flex1,
+              { backgroundColor: buttonColor },
+              (!fullName.trim() || mutation.isPending || pressed) && styles.buttonDisabled,
+            ]}
+            disabled={!fullName.trim() || mutation.isPending}
+            onPress={() => {
+              setError(null);
+              mutation.mutate();
+            }}>
+            {mutation.isPending ? (
+              <ActivityIndicator color="#fff" />
+            ) : (
+              <ThemedText style={styles.buttonText}>Save</ThemedText>
+            )}
+          </Pressable>
+        </ThemedView>
+      </ThemedView>
+    );
+  }
+
+  return (
+    <ThemedView style={styles.childRow}>
+      <View style={[styles.avatar, { backgroundColor: buttonColor + '22' }]}>
+        <ThemedText style={[styles.avatarText, { color: buttonColor }]}>
+          {child.full_name.charAt(0).toUpperCase()}
+        </ThemedText>
+      </View>
+      <ThemedView style={styles.childInfo}>
+        <ThemedText type="defaultSemiBold">{child.full_name}</ThemedText>
+        {formatAge(child.birthdate) ? (
+          <ThemedText style={styles.ageText}>{formatAge(child.birthdate)}</ThemedText>
+        ) : null}
+      </ThemedView>
+      {canEdit ? (
+        <Pressable
+          hitSlop={8}
+          style={({ pressed }) => pressed && styles.pressed}
+          onPress={() => setIsEditing(true)}>
+          <MaterialIcons name="edit" size={20} color={buttonColor} />
+        </Pressable>
+      ) : null}
+    </ThemedView>
   );
 }
 
@@ -159,10 +284,10 @@ function CreateFamilyForm({
       {error ? <ThemedText style={styles.error}>{error}</ThemedText> : null}
 
       <Pressable
-        style={[
+        style={({ pressed }) => [
           styles.button,
           { backgroundColor: buttonColor },
-          (!name.trim() || mutation.isPending) && styles.buttonDisabled,
+          (!name.trim() || mutation.isPending || pressed) && styles.buttonDisabled,
         ]}
         disabled={!name.trim() || mutation.isPending}
         onPress={() => {
@@ -218,10 +343,10 @@ function RedeemInviteForm({
       {error ? <ThemedText style={styles.error}>{error}</ThemedText> : null}
 
       <Pressable
-        style={[
+        style={({ pressed }) => [
           styles.button,
           { backgroundColor: buttonColor },
-          (code.trim().length !== 6 || mutation.isPending) && styles.buttonDisabled,
+          (code.trim().length !== 6 || mutation.isPending || pressed) && styles.buttonDisabled,
         ]}
         disabled={code.trim().length !== 6 || mutation.isPending}
         onPress={() => {
@@ -266,9 +391,16 @@ function AddChildForm({
   if (!isOpen) {
     return (
       <Pressable
-        style={[styles.button, { backgroundColor: buttonColor }, styles.spacer]}
+        style={({ pressed }) => [
+          styles.button,
+          styles.buttonIconRow,
+          { backgroundColor: buttonColor },
+          pressed && styles.buttonDisabled,
+          styles.spacer,
+        ]}
         onPress={() => setIsOpen(true)}>
-        <ThemedText style={styles.buttonText}>+ Add child</ThemedText>
+        <MaterialIcons name="add" size={18} color="#fff" />
+        <ThemedText style={styles.buttonText}>Add child</ThemedText>
       </Pressable>
     );
   }
@@ -293,10 +425,10 @@ function AddChildForm({
       {error ? <ThemedText style={styles.error}>{error}</ThemedText> : null}
 
       <Pressable
-        style={[
+        style={({ pressed }) => [
           styles.button,
           { backgroundColor: buttonColor },
-          (!fullName.trim() || mutation.isPending) && styles.buttonDisabled,
+          (!fullName.trim() || mutation.isPending || pressed) && styles.buttonDisabled,
         ]}
         disabled={!fullName.trim() || mutation.isPending}
         onPress={() => {
@@ -332,7 +464,7 @@ function InvitesSection({
   const invalidate = () => queryClient.invalidateQueries({ queryKey: ['invites', familyId] });
 
   return (
-    <ThemedView style={styles.spacer}>
+    <ThemedView style={styles.invitesSection}>
       <ThemedText type="subtitle">Invitations</ThemedText>
 
       {invitesQuery.isLoading ? (
@@ -342,7 +474,7 @@ function InvitesSection({
           <InviteRow key={invite.id} invite={invite} onRevoked={invalidate} />
         ))
       ) : (
-        <ThemedText style={styles.spacer}>No pending invites.</ThemedText>
+        <ThemedText style={styles.emptyText}>No pending invites.</ThemedText>
       )}
 
       <CreateInviteForm
@@ -363,18 +495,31 @@ function InviteRow({ invite, onRevoked }: { invite: Invitation; onRevoked: () =>
 
   return (
     <ThemedView style={styles.inviteRow}>
-      <ThemedView>
+      <View style={styles.inviteIconBadge}>
+        <MaterialIcons
+          name={invite.invited_role === 'nanny' ? 'volunteer-activism' : 'escalator-warning'}
+          size={20}
+          color="#687076"
+        />
+      </View>
+      <ThemedView style={styles.inviteInfo}>
         <ThemedText type="defaultSemiBold" style={styles.codeText}>
           {invite.code}
         </ThemedText>
-        <ThemedText>
+        <ThemedText style={styles.ageText}>
           {invite.invited_role === 'nanny' ? 'Nanny' : 'Co-parent'} · expires{' '}
           {new Date(invite.expires_at).toLocaleDateString()}
         </ThemedText>
+        <Pressable
+          style={styles.revokeButton}
+          hitSlop={8}
+          disabled={mutation.isPending}
+          onPress={() => mutation.mutate()}>
+          <ThemedText type="link" style={styles.revokeText}>
+            Revoke
+          </ThemedText>
+        </Pressable>
       </ThemedView>
-      <Pressable disabled={mutation.isPending} onPress={() => mutation.mutate()}>
-        <ThemedText type="link">Revoke</ThemedText>
-      </Pressable>
     </ThemedView>
   );
 }
@@ -405,19 +550,38 @@ function CreateInviteForm({
   });
 
   return (
-    <ThemedView style={styles.spacer}>
+    <ThemedView style={styles.inviteForm}>
       <ThemedView style={styles.roleRow}>
         <Pressable
-          style={[styles.roleOption, role === 'nanny' && styles.roleOptionSelected]}
+          style={[
+            styles.roleOption,
+            role === 'nanny' && { backgroundColor: RoleColors.nanny, borderColor: RoleColors.nanny },
+          ]}
           onPress={() => setRole('nanny')}>
-          <ThemedText style={role === 'nanny' ? styles.roleTextSelected : undefined}>
+          <MaterialIcons
+            name="volunteer-activism"
+            size={20}
+            color={role === 'nanny' ? '#fff' : '#687076'}
+          />
+          <ThemedText style={[styles.roleText, role === 'nanny' && styles.roleTextSelected]}>
             Nanny
           </ThemedText>
         </Pressable>
         <Pressable
-          style={[styles.roleOption, role === 'parent' && styles.roleOptionSelected]}
+          style={[
+            styles.roleOption,
+            role === 'parent' && {
+              backgroundColor: RoleColors.parent,
+              borderColor: RoleColors.parent,
+            },
+          ]}
           onPress={() => setRole('parent')}>
-          <ThemedText style={role === 'parent' ? styles.roleTextSelected : undefined}>
+          <MaterialIcons
+            name="escalator-warning"
+            size={20}
+            color={role === 'parent' ? '#fff' : '#687076'}
+          />
+          <ThemedText style={[styles.roleText, role === 'parent' && styles.roleTextSelected]}>
             Co-parent
           </ThemedText>
         </Pressable>
@@ -425,23 +589,28 @@ function CreateInviteForm({
 
       {error ? <ThemedText style={styles.error}>{error}</ThemedText> : null}
       {lastCode ? (
-        <ThemedText style={styles.centerText}>
-          Share this code: <ThemedText style={styles.codeText}>{lastCode}</ThemedText>
-        </ThemedText>
+        <ThemedView style={styles.shareCodeBanner}>
+          <ThemedText style={styles.centerText}>Share this code:</ThemedText>
+          <ThemedText style={styles.codeText}>{lastCode}</ThemedText>
+        </ThemedView>
       ) : null}
 
       <Pressable
-        style={[
+        style={({ pressed }) => [
           styles.button,
+          styles.buttonIconRow,
           { backgroundColor: buttonColor },
-          mutation.isPending && styles.buttonDisabled,
+          (mutation.isPending || pressed) && styles.buttonDisabled,
         ]}
         disabled={mutation.isPending}
         onPress={() => mutation.mutate()}>
         {mutation.isPending ? (
           <ActivityIndicator color="#fff" />
         ) : (
-          <ThemedText style={styles.buttonText}>+ Create invite</ThemedText>
+          <>
+            <MaterialIcons name="person-add-alt" size={18} color="#fff" />
+            <ThemedText style={styles.buttonText}>Create invite</ThemedText>
+          </>
         )}
       </Pressable>
     </ThemedView>
@@ -450,46 +619,65 @@ function CreateInviteForm({
 
 const styles = StyleSheet.create({
   container: {
-    padding: 24,
-    gap: 12,
+    padding: Spacing.xl,
+    gap: Spacing.lg,
   },
   section: {
-    gap: 8,
+    gap: Spacing.md,
   },
   center: {
     flex: 1,
     justifyContent: 'center',
-    padding: 24,
-    gap: 12,
+    alignItems: 'center',
+    padding: Spacing.xl,
+    gap: Spacing.md,
+  },
+  logoBadge: {
+    width: 64,
+    height: 64,
+    borderRadius: Radii.lg,
+    backgroundColor: 'rgba(10, 126, 164, 0.12)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    alignSelf: 'center',
+    marginBottom: Spacing.sm,
   },
   centerText: {
-    marginBottom: 8,
+    marginBottom: Spacing.sm,
+  },
+  emptyText: {
+    opacity: 0.7,
   },
   orDivider: {
     textAlign: 'center',
-    marginVertical: 8,
+    marginVertical: Spacing.sm,
   },
   title: {
-    marginBottom: 4,
+    marginBottom: Spacing.xs,
   },
   input: {
     borderWidth: 1,
     borderColor: '#687076',
-    borderRadius: 8,
+    borderRadius: Radii.sm,
     paddingHorizontal: 14,
     paddingVertical: 12,
     fontSize: 16,
-    marginBottom: 8,
+    marginBottom: Spacing.sm,
   },
   error: {
     color: '#d33',
-    marginBottom: 8,
+    marginBottom: Spacing.sm,
   },
   button: {
     backgroundColor: '#0a7ea4',
-    borderRadius: 8,
+    borderRadius: Radii.sm,
     paddingVertical: 14,
     alignItems: 'center',
+  },
+  buttonIconRow: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: Spacing.sm,
   },
   buttonDisabled: {
     opacity: 0.6,
@@ -498,44 +686,137 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontWeight: '600',
   },
+  secondaryButton: {
+    borderRadius: Radii.sm,
+    paddingVertical: 14,
+    paddingHorizontal: Spacing.lg,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#687076',
+  },
+  secondaryButtonText: {
+    fontWeight: '600',
+  },
+  flex1: {
+    flex: 1,
+  },
+  pressed: {
+    opacity: 0.6,
+  },
+  editCard: {
+    borderWidth: 1,
+    borderColor: 'rgba(104, 112, 118, 0.25)',
+    borderRadius: Radii.md,
+    padding: Spacing.md,
+    marginBottom: Spacing.sm,
+  },
+  editActions: {
+    flexDirection: 'row',
+    gap: Spacing.sm,
+  },
   spacer: {
-    marginTop: 16,
+    marginTop: Spacing.lg,
+  },
+  childList: {
+    marginTop: Spacing.lg,
+    gap: Spacing.xs,
+  },
+  invitesSection: {
+    marginTop: Spacing.lg,
+    gap: Spacing.sm,
+  },
+  inviteForm: {
+    marginTop: Spacing.lg,
+    gap: Spacing.md,
   },
   childRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    paddingVertical: 10,
+    alignItems: 'center',
+    gap: Spacing.md,
+    paddingVertical: Spacing.md,
     borderBottomWidth: 1,
     borderBottomColor: '#e0e0e0',
   },
+  avatar: {
+    width: 40,
+    height: 40,
+    borderRadius: Radii.pill,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  avatarText: {
+    fontWeight: '700',
+    fontSize: 16,
+  },
+  childInfo: {
+    flex: 1,
+  },
+  ageText: {
+    opacity: 0.7,
+    fontSize: 13,
+  },
   inviteRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: 10,
+    alignItems: 'flex-start',
+    gap: Spacing.md,
+    paddingVertical: Spacing.md,
     borderBottomWidth: 1,
     borderBottomColor: '#e0e0e0',
+  },
+  inviteIconBadge: {
+    width: 36,
+    height: 36,
+    borderRadius: Radii.pill,
+    backgroundColor: 'rgba(104, 112, 118, 0.12)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  inviteInfo: {
+    flex: 1,
+    gap: 2,
+  },
+  revokeButton: {
+    // Stretch instead of shrink-wrapping: a content-sized text view gets
+    // clipped on the trailing glyph by Android/Fabric (padding doesn't help
+    // because StaticLayout excludes it from the line width). Filling the row
+    // width gives the text horizontal slack so nothing is cut off.
+    alignSelf: 'stretch',
+    marginTop: Spacing.xs,
+  },
+  revokeText: {
+    alignSelf: 'stretch',
+    textAlign: 'left',
   },
   codeText: {
     fontSize: 20,
     fontWeight: '700',
     letterSpacing: 2,
   },
+  shareCodeBanner: {
+    backgroundColor: 'rgba(10, 126, 164, 0.08)',
+    borderRadius: Radii.sm,
+    paddingVertical: Spacing.sm,
+    paddingHorizontal: Spacing.md,
+    alignItems: 'center',
+  },
   roleRow: {
     flexDirection: 'row',
-    gap: 12,
+    gap: Spacing.md,
   },
   roleOption: {
     flex: 1,
     borderWidth: 1,
     borderColor: '#687076',
-    borderRadius: 8,
+    borderRadius: Radii.sm,
     paddingVertical: 14,
     alignItems: 'center',
+    gap: 6,
   },
-  roleOptionSelected: {
-    backgroundColor: '#0a7ea4',
-    borderColor: '#0a7ea4',
+  roleText: {
+    // Fill the pill width (rather than shrink-wrapping) so Android/Fabric
+    // doesn't clip the trailing glyph ("Co-paren"); textAlign keeps it centered.
+    alignSelf: 'stretch',
+    textAlign: 'center',
   },
   roleTextSelected: {
     color: '#fff',

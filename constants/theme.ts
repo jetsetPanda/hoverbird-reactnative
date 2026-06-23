@@ -34,6 +34,23 @@ export const RoleColors = {
   nanny: tintColorLight,
 };
 
+// Icon + color per activity_category, used to make the feed/log screens
+// scannable at a glance instead of plain text rows.
+export const CategoryStyles: Record<string, { icon: string; color: string }> = {
+  meal: { icon: 'restaurant', color: '#E8973C' },
+  nap: { icon: 'bedtime', color: '#7B8FD6' },
+  play: { icon: 'toys', color: '#4FAE7A' },
+  learning: { icon: 'menu-book', color: '#5B8DEF' },
+  diaper: { icon: 'child-care', color: '#D87FB0' },
+  outdoor: { icon: 'park', color: '#3FA34D' },
+  mood: { icon: 'mood', color: '#E0A93E' },
+  milestone: { icon: 'star', color: '#D6A53C' },
+  other: { icon: 'more-horiz', color: '#9AA1A6' },
+};
+
+export const Spacing = { xs: 4, sm: 8, md: 12, lg: 16, xl: 24 };
+export const Radii = { sm: 8, md: 12, lg: 16, pill: 999 };
+
 export const Fonts = Platform.select({
   ios: {
     /** iOS `UIFontDescriptorSystemDesignDefault` */
