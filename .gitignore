@@ -44,3 +44,10 @@ app-example
 # generated native folders
 /ios
 /android
+
+# local dev tooling (not part of the app)
+.mcp.json
+install.cmd
+
+# JetBrains IDE
+.idea/
