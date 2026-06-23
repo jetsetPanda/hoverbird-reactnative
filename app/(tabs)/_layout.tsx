@@ -33,8 +33,8 @@ export default function TabLayout() {
         <Tabs.Screen
             name="info"
             options={{
-                title: 'Info',
-                tabBarIcon: ({ color }) => <IconSymbol size={28} name="r.joystick.tilt.up.fill" color={color} />,
+                title: 'Account',
+                tabBarIcon: ({ color }) => <IconSymbol size={28} name="person.crop.circle.fill" color={color} />,
             }}
         />
     </Tabs>
