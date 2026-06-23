@@ -8,7 +8,14 @@ import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { Radii, RoleColors, Spacing } from '@/constants/theme';
 import { useAuth, type UserRole } from '@/contexts/auth-provider';
-import { addChild, createFamily, fetchChildren, fetchMyFamily } from '@/lib/families';
+import {
+  addChild,
+  createFamily,
+  fetchChildren,
+  fetchMyFamily,
+  updateChild,
+  type Child,
+} from '@/lib/families';
 import {
   createInvite,
   fetchInvites,
@@ -96,22 +103,18 @@ export default function FamilyScreen() {
       {childrenQuery.isLoading ? (
         <ActivityIndicator color={buttonColor} style={styles.spacer} />
       ) : (
-        <ThemedView style={styles.spacer}>
+        <ThemedView style={styles.childList}>
           {childrenQuery.data?.length ? (
             childrenQuery.data.map((child) => (
-              <ThemedView key={child.id} style={styles.childRow}>
-                <View style={[styles.avatar, { backgroundColor: buttonColor + '22' }]}>
-                  <ThemedText style={[styles.avatarText, { color: buttonColor }]}>
-                    {child.full_name.charAt(0).toUpperCase()}
-                  </ThemedText>
-                </View>
-                <ThemedView style={styles.childInfo}>
-                  <ThemedText type="defaultSemiBold">{child.full_name}</ThemedText>
-                  {formatAge(child.birthdate) ? (
-                    <ThemedText style={styles.ageText}>{formatAge(child.birthdate)}</ThemedText>
-                  ) : null}
-                </ThemedView>
-              </ThemedView>
+              <ChildRow
+                key={child.id}
+                child={child}
+                buttonColor={buttonColor}
+                canEdit={profile?.role === 'parent'}
+                onUpdated={() =>
+                  queryClient.invalidateQueries({ queryKey: ['children', familyQuery.data!.id] })
+                }
+              />
             ))
           ) : (
             <ThemedText style={styles.emptyText}>No children added yet.</ThemedText>
@@ -136,6 +139,112 @@ export default function FamilyScreen() {
         </>
       ) : null}
     </ScrollView>
+  );
+}
+
+function ChildRow({
+  child,
+  buttonColor,
+  canEdit,
+  onUpdated,
+}: {
+  child: Child;
+  buttonColor: string;
+  canEdit: boolean;
+  onUpdated: () => void;
+}) {
+  const [isEditing, setIsEditing] = useState(false);
+  const [fullName, setFullName] = useState(child.full_name);
+  const [birthdate, setBirthdate] = useState(child.birthdate ?? '');
+  const [error, setError] = useState<string | null>(null);
+
+  const mutation = useMutation({
+    mutationFn: () => updateChild(child.id, fullName.trim(), birthdate.trim() || null),
+    onSuccess: () => {
+      setError(null);
+      setIsEditing(false);
+      onUpdated();
+    },
+    onError: (err: Error) => setError(err.message),
+  });
+
+  if (isEditing) {
+    return (
+      <ThemedView style={styles.editCard}>
+        <TextInput
+          style={styles.input}
+          placeholder="Child's name"
+          placeholderTextColor="#687076"
+          value={fullName}
+          onChangeText={setFullName}
+        />
+        <TextInput
+          style={styles.input}
+          placeholder="Birthdate YYYY-MM-DD (optional)"
+          placeholderTextColor="#687076"
+          value={birthdate}
+          onChangeText={setBirthdate}
+        />
+
+        {error ? <ThemedText style={styles.error}>{error}</ThemedText> : null}
+
+        <ThemedView style={styles.editActions}>
+          <Pressable
+            style={({ pressed }) => [styles.secondaryButton, pressed && styles.buttonDisabled]}
+            disabled={mutation.isPending}
+            onPress={() => {
+              setFullName(child.full_name);
+              setBirthdate(child.birthdate ?? '');
+              setError(null);
+              setIsEditing(false);
+            }}>
+            <ThemedText style={styles.secondaryButtonText}>Cancel</ThemedText>
+          </Pressable>
+          <Pressable
+            style={({ pressed }) => [
+              styles.button,
+              styles.flex1,
+              { backgroundColor: buttonColor },
+              (!fullName.trim() || mutation.isPending || pressed) && styles.buttonDisabled,
+            ]}
+            disabled={!fullName.trim() || mutation.isPending}
+            onPress={() => {
+              setError(null);
+              mutation.mutate();
+            }}>
+            {mutation.isPending ? (
+              <ActivityIndicator color="#fff" />
+            ) : (
+              <ThemedText style={styles.buttonText}>Save</ThemedText>
+            )}
+          </Pressable>
+        </ThemedView>
+      </ThemedView>
+    );
+  }
+
+  return (
+    <ThemedView style={styles.childRow}>
+      <View style={[styles.avatar, { backgroundColor: buttonColor + '22' }]}>
+        <ThemedText style={[styles.avatarText, { color: buttonColor }]}>
+          {child.full_name.charAt(0).toUpperCase()}
+        </ThemedText>
+      </View>
+      <ThemedView style={styles.childInfo}>
+        <ThemedText type="defaultSemiBold">{child.full_name}</ThemedText>
+        {formatAge(child.birthdate) ? (
+          <ThemedText style={styles.ageText}>{formatAge(child.birthdate)}</ThemedText>
+        ) : null}
+      </ThemedView>
+      {canEdit ? (
+        <Pressable
+          hitSlop={8}
+          style={({ pressed }) => pressed && styles.pressed}
+          onPress={() => setIsEditing(true)}>
+          <MaterialIcons name="edit" size={20} color={buttonColor} />
+        </Pressable>
+      ) : null}
+    </ThemedView>
   );
 }
 
@@ -355,7 +464,7 @@ function InvitesSection({
   const invalidate = () => queryClient.invalidateQueries({ queryKey: ['invites', familyId] });
 
   return (
-    <ThemedView style={styles.spacer}>
+    <ThemedView style={styles.invitesSection}>
       <ThemedText type="subtitle">Invitations</ThemedText>
 
       {invitesQuery.isLoading ? (
@@ -365,7 +474,7 @@ function InvitesSection({
           <InviteRow key={invite.id} invite={invite} onRevoked={invalidate} />
         ))
       ) : (
-        <ThemedText style={styles.spacer}>No pending invites.</ThemedText>
+        <ThemedText style={styles.emptyText}>No pending invites.</ThemedText>
       )}
 
       <CreateInviteForm
@@ -401,10 +510,16 @@ function InviteRow({ invite, onRevoked }: { invite: Invitation; onRevoked: () =>
           {invite.invited_role === 'nanny' ? 'Nanny' : 'Co-parent'} · expires{' '}
           {new Date(invite.expires_at).toLocaleDateString()}
         </ThemedText>
+        <Pressable
+          style={styles.revokeButton}
+          hitSlop={8}
+          disabled={mutation.isPending}
+          onPress={() => mutation.mutate()}>
+          <ThemedText type="link" style={styles.revokeText}>
+            Revoke
+          </ThemedText>
+        </Pressable>
       </ThemedView>
-      <Pressable disabled={mutation.isPending} onPress={() => mutation.mutate()}>
-        <ThemedText type="link">Revoke</ThemedText>
-      </Pressable>
     </ThemedView>
   );
 }
@@ -435,7 +550,7 @@ function CreateInviteForm({
   });
 
   return (
-    <ThemedView style={styles.spacer}>
+    <ThemedView style={styles.inviteForm}>
       <ThemedView style={styles.roleRow}>
         <Pressable
           style={[
@@ -448,7 +563,7 @@ function CreateInviteForm({
             size={20}
             color={role === 'nanny' ? '#fff' : '#687076'}
           />
-          <ThemedText style={role === 'nanny' ? styles.roleTextSelected : undefined}>
+          <ThemedText style={[styles.roleText, role === 'nanny' && styles.roleTextSelected]}>
             Nanny
           </ThemedText>
         </Pressable>
@@ -466,7 +581,7 @@ function CreateInviteForm({
             size={20}
             color={role === 'parent' ? '#fff' : '#687076'}
           />
-          <ThemedText style={role === 'parent' ? styles.roleTextSelected : undefined}>
+          <ThemedText style={[styles.roleText, role === 'parent' && styles.roleTextSelected]}>
             Co-parent
           </ThemedText>
         </Pressable>
@@ -505,10 +620,10 @@ function CreateInviteForm({
 const styles = StyleSheet.create({
   container: {
     padding: Spacing.xl,
-    gap: Spacing.md,
+    gap: Spacing.lg,
   },
   section: {
-    gap: Spacing.sm,
+    gap: Spacing.md,
   },
   center: {
     flex: 1,
@@ -571,14 +686,54 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontWeight: '600',
   },
+  secondaryButton: {
+    borderRadius: Radii.sm,
+    paddingVertical: 14,
+    paddingHorizontal: Spacing.lg,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#687076',
+  },
+  secondaryButtonText: {
+    fontWeight: '600',
+  },
+  flex1: {
+    flex: 1,
+  },
+  pressed: {
+    opacity: 0.6,
+  },
+  editCard: {
+    borderWidth: 1,
+    borderColor: 'rgba(104, 112, 118, 0.25)',
+    borderRadius: Radii.md,
+    padding: Spacing.md,
+    marginBottom: Spacing.sm,
+  },
+  editActions: {
+    flexDirection: 'row',
+    gap: Spacing.sm,
+  },
   spacer: {
     marginTop: Spacing.lg,
+  },
+  childList: {
+    marginTop: Spacing.lg,
+    gap: Spacing.xs,
+  },
+  invitesSection: {
+    marginTop: Spacing.lg,
+    gap: Spacing.sm,
+  },
+  inviteForm: {
+    marginTop: Spacing.lg,
+    gap: Spacing.md,
   },
   childRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.md,
-    paddingVertical: Spacing.sm,
+    paddingVertical: Spacing.md,
     borderBottomWidth: 1,
     borderBottomColor: '#e0e0e0',
   },
@@ -602,9 +757,9 @@ const styles = StyleSheet.create({
   },
   inviteRow: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     gap: Spacing.md,
-    paddingVertical: Spacing.sm,
+    paddingVertical: Spacing.md,
     borderBottomWidth: 1,
     borderBottomColor: '#e0e0e0',
   },
@@ -618,6 +773,19 @@ const styles = StyleSheet.create({
   },
   inviteInfo: {
     flex: 1,
+    gap: 2,
+  },
+  revokeButton: {
+    // Stretch instead of shrink-wrapping: a content-sized text view gets
+    // clipped on the trailing glyph by Android/Fabric (padding doesn't help
+    // because StaticLayout excludes it from the line width). Filling the row
+    // width gives the text horizontal slack so nothing is cut off.
+    alignSelf: 'stretch',
+    marginTop: Spacing.xs,
+  },
+  revokeText: {
+    alignSelf: 'stretch',
+    textAlign: 'left',
   },
   codeText: {
     fontSize: 20,
@@ -643,6 +811,12 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     alignItems: 'center',
     gap: 6,
+  },
+  roleText: {
+    // Fill the pill width (rather than shrink-wrapping) so Android/Fabric
+    // doesn't clip the trailing glyph ("Co-paren"); textAlign keeps it centered.
+    alignSelf: 'stretch',
+    textAlign: 'center',
   },
   roleTextSelected: {
     color: '#fff',

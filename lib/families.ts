@@ -73,3 +73,19 @@ export async function addChild(
   if (error) throw error;
   return data as Child;
 }
+
+export async function updateChild(
+  childId: string,
+  fullName: string,
+  birthdate: string | null
+): Promise<Child> {
+  // RLS ("parents update children") restricts this to family members.
+  const { data, error } = await supabase
+    .from('children')
+    .update({ full_name: fullName, birthdate })
+    .eq('id', childId)
+    .select()
+    .single();
+  if (error) throw error;
+  return data as Child;
+}
