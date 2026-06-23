@@ -20,7 +20,8 @@
       },
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
-      "package": "com.jetsetdev.hoverbirdreactnative"
+      "package": "com.jetsetdev.hoverbirdreactnative",
+      "googleServicesFile": "./google-services.json"
     },
     "web": {
       "output": "static",
