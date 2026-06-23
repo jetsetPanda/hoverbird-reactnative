@@ -4,8 +4,22 @@ import { ActivityIndicator, Pressable, ScrollView, StyleSheet, TextInput } from 
 
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { useAuth } from '@/contexts/auth-provider';
+import { useAuth, type UserRole } from '@/contexts/auth-provider';
 import { addChild, createFamily, fetchChildren, fetchMyFamily } from '@/lib/families';
+import {
+  createInvite,
+  fetchInvites,
+  redeemInvite,
+  revokeInvite,
+  type Invitation,
+} from '@/lib/invitations';
+
+const REDEEM_ERROR_MESSAGES: Record<string, string> = {
+  no_profile: 'Your profile could not be found. Try signing out and back in.',
+  invalid_code: 'That code is invalid or has already been used.',
+  expired: 'That code has expired. Ask for a new one.',
+  role_mismatch: 'This code is for a different role than yours.',
+};
 
 function formatAge(birthdate: string | null): string | null {
   if (!birthdate) return null;
@@ -43,18 +57,25 @@ export default function FamilyScreen() {
   if (!familyQuery.data) {
     if (profile?.role === 'nanny') {
       return (
-        <ThemedView style={styles.center}>
+        <ScrollView contentContainerStyle={styles.container}>
           <ThemedText type="title" style={styles.title}>
             No family yet
           </ThemedText>
           <ThemedText style={styles.centerText}>
-            You haven&apos;t been added to a family yet. Ask a parent for an invite code once
-            invitations are set up.
+            You haven&apos;t been added to a family yet. Enter an invite code from a parent
+            below.
           </ThemedText>
-        </ThemedView>
+          <RedeemInviteForm onJoined={() => familyQuery.refetch()} />
+        </ScrollView>
       );
     }
-    return <CreateFamilyForm onCreated={() => familyQuery.refetch()} />;
+    return (
+      <ScrollView contentContainerStyle={styles.container}>
+        <CreateFamilyForm onCreated={() => familyQuery.refetch()} />
+        <ThemedText style={styles.orDivider}>— or —</ThemedText>
+        <RedeemInviteForm onJoined={() => familyQuery.refetch()} />
+      </ScrollView>
+    );
   }
 
   return (
@@ -81,10 +102,15 @@ export default function FamilyScreen() {
       )}
 
       {profile?.role === 'parent' ? (
-        <AddChildForm
-          familyId={familyQuery.data.id}
-          onAdded={() => queryClient.invalidateQueries({ queryKey: ['children', familyQuery.data!.id] })}
-        />
+        <>
+          <AddChildForm
+            familyId={familyQuery.data.id}
+            onAdded={() =>
+              queryClient.invalidateQueries({ queryKey: ['children', familyQuery.data!.id] })
+            }
+          />
+          <InvitesSection familyId={familyQuery.data.id} inviterId={profile.id} />
+        </>
       ) : null}
     </ScrollView>
   );
@@ -101,7 +127,7 @@ function CreateFamilyForm({ onCreated }: { onCreated: () => void }) {
   });
 
   return (
-    <ThemedView style={styles.center}>
+    <ThemedView style={styles.section}>
       <ThemedText type="title" style={styles.title}>
         Create your family
       </ThemedText>
@@ -130,6 +156,58 @@ function CreateFamilyForm({ onCreated }: { onCreated: () => void }) {
           <ActivityIndicator color="#fff" />
         ) : (
           <ThemedText style={styles.buttonText}>Create family</ThemedText>
+        )}
+      </Pressable>
+    </ThemedView>
+  );
+}
+
+function RedeemInviteForm({ onJoined }: { onJoined: () => void }) {
+  const [code, setCode] = useState('');
+  const [error, setError] = useState<string | null>(null);
+
+  const mutation = useMutation({
+    mutationFn: () => redeemInvite(code.trim()),
+    onSuccess: (result) => {
+      if (result.ok) {
+        setError(null);
+        onJoined();
+      } else {
+        setError(REDEEM_ERROR_MESSAGES[result.error] ?? result.error);
+      }
+    },
+    onError: (err: Error) => setError(err.message),
+  });
+
+  return (
+    <ThemedView style={styles.section}>
+      <ThemedText type="defaultSemiBold">Have an invite code?</ThemedText>
+      <TextInput
+        style={styles.input}
+        placeholder="6-digit code"
+        placeholderTextColor="#687076"
+        keyboardType="number-pad"
+        maxLength={6}
+        value={code}
+        onChangeText={setCode}
+      />
+
+      {error ? <ThemedText style={styles.error}>{error}</ThemedText> : null}
+
+      <Pressable
+        style={[
+          styles.button,
+          (code.trim().length !== 6 || mutation.isPending) && styles.buttonDisabled,
+        ]}
+        disabled={code.trim().length !== 6 || mutation.isPending}
+        onPress={() => {
+          setError(null);
+          mutation.mutate();
+        }}>
+        {mutation.isPending ? (
+          <ActivityIndicator color="#fff" />
+        ) : (
+          <ThemedText style={styles.buttonText}>Join family</ThemedText>
         )}
       </Pressable>
     </ThemedView>
@@ -197,10 +275,129 @@ function AddChildForm({ familyId, onAdded }: { familyId: string; onAdded: () => 
   );
 }
 
+function InvitesSection({ familyId, inviterId }: { familyId: string; inviterId: string }) {
+  const queryClient = useQueryClient();
+
+  const invitesQuery = useQuery({
+    queryKey: ['invites', familyId],
+    queryFn: () => fetchInvites(familyId),
+  });
+
+  const invalidate = () => queryClient.invalidateQueries({ queryKey: ['invites', familyId] });
+
+  return (
+    <ThemedView style={styles.spacer}>
+      <ThemedText type="subtitle">Invitations</ThemedText>
+
+      {invitesQuery.isLoading ? (
+        <ActivityIndicator style={styles.spacer} />
+      ) : invitesQuery.data?.length ? (
+        invitesQuery.data.map((invite) => (
+          <InviteRow key={invite.id} invite={invite} onRevoked={invalidate} />
+        ))
+      ) : (
+        <ThemedText style={styles.spacer}>No pending invites.</ThemedText>
+      )}
+
+      <CreateInviteForm familyId={familyId} inviterId={inviterId} onCreated={invalidate} />
+    </ThemedView>
+  );
+}
+
+function InviteRow({ invite, onRevoked }: { invite: Invitation; onRevoked: () => void }) {
+  const mutation = useMutation({
+    mutationFn: () => revokeInvite(invite.id),
+    onSuccess: onRevoked,
+  });
+
+  return (
+    <ThemedView style={styles.inviteRow}>
+      <ThemedView>
+        <ThemedText type="defaultSemiBold" style={styles.codeText}>
+          {invite.code}
+        </ThemedText>
+        <ThemedText>
+          {invite.invited_role === 'nanny' ? 'Nanny' : 'Co-parent'} · expires{' '}
+          {new Date(invite.expires_at).toLocaleDateString()}
+        </ThemedText>
+      </ThemedView>
+      <Pressable disabled={mutation.isPending} onPress={() => mutation.mutate()}>
+        <ThemedText type="link">Revoke</ThemedText>
+      </Pressable>
+    </ThemedView>
+  );
+}
+
+function CreateInviteForm({
+  familyId,
+  inviterId,
+  onCreated,
+}: {
+  familyId: string;
+  inviterId: string;
+  onCreated: () => void;
+}) {
+  const [role, setRole] = useState<UserRole>('nanny');
+  const [error, setError] = useState<string | null>(null);
+  const [lastCode, setLastCode] = useState<string | null>(null);
+
+  const mutation = useMutation({
+    mutationFn: () => createInvite(familyId, inviterId, role),
+    onSuccess: (invite) => {
+      setError(null);
+      setLastCode(invite.code);
+      onCreated();
+    },
+    onError: (err: Error) => setError(err.message),
+  });
+
+  return (
+    <ThemedView style={styles.spacer}>
+      <ThemedView style={styles.roleRow}>
+        <Pressable
+          style={[styles.roleOption, role === 'nanny' && styles.roleOptionSelected]}
+          onPress={() => setRole('nanny')}>
+          <ThemedText style={role === 'nanny' ? styles.roleTextSelected : undefined}>
+            Nanny
+          </ThemedText>
+        </Pressable>
+        <Pressable
+          style={[styles.roleOption, role === 'parent' && styles.roleOptionSelected]}
+          onPress={() => setRole('parent')}>
+          <ThemedText style={role === 'parent' ? styles.roleTextSelected : undefined}>
+            Co-parent
+          </ThemedText>
+        </Pressable>
+      </ThemedView>
+
+      {error ? <ThemedText style={styles.error}>{error}</ThemedText> : null}
+      {lastCode ? (
+        <ThemedText style={styles.centerText}>
+          Share this code: <ThemedText style={styles.codeText}>{lastCode}</ThemedText>
+        </ThemedText>
+      ) : null}
+
+      <Pressable
+        style={[styles.button, mutation.isPending && styles.buttonDisabled]}
+        disabled={mutation.isPending}
+        onPress={() => mutation.mutate()}>
+        {mutation.isPending ? (
+          <ActivityIndicator color="#fff" />
+        ) : (
+          <ThemedText style={styles.buttonText}>+ Create invite</ThemedText>
+        )}
+      </Pressable>
+    </ThemedView>
+  );
+}
+
 const styles = StyleSheet.create({
   container: {
     padding: 24,
     gap: 12,
+  },
+  section: {
+    gap: 8,
   },
   center: {
     flex: 1,
@@ -210,6 +407,10 @@ const styles = StyleSheet.create({
   },
   centerText: {
     marginBottom: 8,
+  },
+  orDivider: {
+    textAlign: 'center',
+    marginVertical: 8,
   },
   title: {
     marginBottom: 4,
@@ -249,5 +450,38 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     borderBottomWidth: 1,
     borderBottomColor: '#e0e0e0',
+  },
+  inviteRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e0e0e0',
+  },
+  codeText: {
+    fontSize: 20,
+    fontWeight: '700',
+    letterSpacing: 2,
+  },
+  roleRow: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  roleOption: {
+    flex: 1,
+    borderWidth: 1,
+    borderColor: '#687076',
+    borderRadius: 8,
+    paddingVertical: 14,
+    alignItems: 'center',
+  },
+  roleOptionSelected: {
+    backgroundColor: '#0a7ea4',
+    borderColor: '#0a7ea4',
+  },
+  roleTextSelected: {
+    color: '#fff',
+    fontWeight: '600',
   },
 });
