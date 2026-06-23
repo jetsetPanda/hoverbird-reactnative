@@ -1,7 +1,15 @@
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
 import { useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
+import {
+  ActivityIndicator,
+  Dimensions,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  TextInput,
+  View,
+} from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
@@ -503,6 +511,8 @@ function CreateInviteForm({
 const styles = StyleSheet.create({
   container: {
     padding: Spacing.xl,
+    // ~5vh — keeps content clear of the status bar / notch / camera cutout
+    paddingTop: Dimensions.get('window').height * 0.05,
     gap: Spacing.md,
   },
   section: {
