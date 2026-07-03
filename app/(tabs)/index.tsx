@@ -1,5 +1,7 @@
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { Image } from 'expo-image';
+import * as ImagePicker from 'expo-image-picker';
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -16,6 +18,7 @@ import {
   type Activity,
 } from '@/lib/activities';
 import { fetchChildren, fetchMyFamily, type Child } from '@/lib/families';
+import { getActivityMediaUrl, SIGNED_URL_STALE_MS, uploadActivityPhoto } from '@/lib/media';
 
 function timeAgo(iso: string): string {
   const minutes = Math.floor((Date.now() - new Date(iso).getTime()) / 60000);
@@ -113,6 +116,11 @@ function LogActivityScreen({
   const [selectedChildId, setSelectedChildId] = useState(familyChildren[0].id);
   const [noteText, setNoteText] = useState('');
   const [confirmation, setConfirmation] = useState<string | null>(null);
+  const [pendingPhoto, setPendingPhoto] = useState<{
+    uri: string;
+    mimeType: string | null;
+  } | null>(null);
+  const [photoError, setPhotoError] = useState<string | null>(null);
   const insets = useSafeAreaInsets();
   const queryClient = useQueryClient();
 
@@ -129,15 +137,70 @@ function LogActivityScreen({
   useEffect(() => subscribeToActivities([selectedChildId], invalidate), [selectedChildId]);
 
   const logMutation = useMutation({
-    mutationFn: (params: { templateKey: string | null; category: string; note: string | null }) =>
-      logActivity({ childId: selectedChildId, loggedBy, ...params }),
+    // Upload first (if a photo is attached), then insert the activity with the
+    // resulting storage path. On failure nothing is inserted and the note +
+    // photo stay in place, so the nanny can retry or remove the photo.
+    mutationFn: async (params: {
+      templateKey: string | null;
+      category: string;
+      note: string | null;
+    }) => {
+      const mediaUrls = pendingPhoto
+        ? [
+            await uploadActivityPhoto({
+              familyId: familyChildren[0].family_id,
+              localUri: pendingPhoto.uri,
+              mimeType: pendingPhoto.mimeType,
+            }),
+          ]
+        : [];
+      return logActivity({ childId: selectedChildId, loggedBy, mediaUrls, ...params });
+    },
     onSuccess: (_activity, params) => {
       const label = params.note ? 'Logged note' : 'Logged';
       setConfirmation(label);
+      setPendingPhoto(null);
+      setPhotoError(null);
       setTimeout(() => setConfirmation(null), 2000);
       invalidate();
     },
+    onError: () => {
+      setPhotoError(
+        pendingPhoto
+          ? 'Upload failed — try again, or remove the photo to log without it.'
+          : 'Could not log the activity — please try again.'
+      );
+    },
   });
+
+  const pickPhoto = async (source: 'library' | 'camera') => {
+    setPhotoError(null);
+    try {
+      const permission =
+        source === 'library'
+          ? await ImagePicker.requestMediaLibraryPermissionsAsync()
+          : await ImagePicker.requestCameraPermissionsAsync();
+      if (!permission.granted) {
+        setPhotoError(
+          source === 'library'
+            ? 'Photo library access is needed to attach a photo.'
+            : 'Camera access is needed to take a photo.'
+        );
+        return;
+      }
+      // quality 0.7: these are phone photos headed for a mobile feed.
+      const options: ImagePicker.ImagePickerOptions = { mediaTypes: ['images'], quality: 0.7 };
+      const result =
+        source === 'library'
+          ? await ImagePicker.launchImageLibraryAsync(options)
+          : await ImagePicker.launchCameraAsync(options);
+      if (!result.canceled && result.assets[0]) {
+        setPendingPhoto({ uri: result.assets[0].uri, mimeType: result.assets[0].mimeType ?? null });
+      }
+    } catch {
+      setPhotoError('Could not open the photo picker.');
+    }
+  };
 
   const selectedChild = familyChildren.find((c) => c.id === selectedChildId);
 
@@ -214,24 +277,69 @@ function LogActivityScreen({
           value={noteText}
           onChangeText={setNoteText}
         />
+        {pendingPhoto ? (
+          <View style={styles.photoPreviewRow}>
+            <Image
+              source={{ uri: pendingPhoto.uri }}
+              style={styles.photoPreview}
+              contentFit="cover"
+            />
+            <Pressable
+              hitSlop={8}
+              disabled={logMutation.isPending}
+              onPress={() => {
+                setPendingPhoto(null);
+                setPhotoError(null);
+              }}
+              style={({ pressed }) => [styles.photoRemove, pressed && styles.pressed]}>
+              <MaterialIcons name="close" size={18} color="#687076" />
+            </Pressable>
+          </View>
+        ) : (
+          <View style={styles.photoButtonRow}>
+            <Pressable
+              style={({ pressed }) => [styles.photoButton, pressed && styles.pressed]}
+              disabled={logMutation.isPending}
+              onPress={() => pickPhoto('library')}>
+              <MaterialIcons name="photo-library" size={16} color={accent} />
+              <ThemedText style={styles.photoButtonText}>{noClip('Add photo')}</ThemedText>
+            </Pressable>
+            <Pressable
+              style={({ pressed }) => [styles.photoButton, pressed && styles.pressed]}
+              disabled={logMutation.isPending}
+              onPress={() => pickPhoto('camera')}>
+              <MaterialIcons name="photo-camera" size={16} color={accent} />
+              <ThemedText style={styles.photoButtonText}>{noClip('Camera')}</ThemedText>
+            </Pressable>
+          </View>
+        )}
+        {photoError ? (
+          <ThemedView style={styles.errorBanner}>
+            <MaterialIcons name="error-outline" size={18} color="#c23b3b" />
+            <ThemedText style={styles.errorText}>{photoError}</ThemedText>
+          </ThemedView>
+        ) : null}
         <Pressable
           style={({ pressed }) => [
             styles.button,
             { backgroundColor: accent },
-            (!noteText.trim() || logMutation.isPending) && styles.buttonDisabled,
+            ((!noteText.trim() && !pendingPhoto) || logMutation.isPending) &&
+              styles.buttonDisabled,
             pressed && styles.pressed,
           ]}
-          disabled={!noteText.trim() || logMutation.isPending}
+          disabled={(!noteText.trim() && !pendingPhoto) || logMutation.isPending}
           onPress={() => {
             logMutation.mutate(
-              { templateKey: 'custom', category: 'other', note: noteText.trim() },
+              { templateKey: 'custom', category: 'other', note: noteText.trim() || null },
               { onSuccess: () => setNoteText('') }
             );
           }}>
           {logMutation.isPending ? (
             <ActivityIndicator color="#fff" />
           ) : (
-            <ThemedText style={styles.buttonText}>Log note</ThemedText>
+            <ThemedText style={styles.buttonText}>
+              {noteText.trim() || !pendingPhoto ? 'Log note' : 'Log photo'}
+            </ThemedText>
           )}
         </Pressable>
       </ThemedView>
@@ -360,12 +468,56 @@ function ActivityList({
               {activity.template_key === 'custom' && activity.note ? (
                 <ThemedText style={styles.noteText}>{activity.note}</ThemedText>
               ) : null}
+              {activity.media_urls.length > 0 ? (
+                <View style={styles.photoRow}>
+                  {activity.media_urls.map((path) => (
+                    <ActivityPhoto key={path} path={path} />
+                  ))}
+                </View>
+              ) : null}
               <ThemedText style={styles.timeText}>{timeAgo(activity.occurred_at)}</ThemedText>
             </ThemedView>
           </ThemedView>
         );
       })}
     </ThemedView>
+  );
+}
+
+// One photo in an activity card. The bucket is private, so `path` (a storage
+// path from media_urls) is resolved to a short-lived signed URL; react-query's
+// staleTime plus the module cache in lib/media.ts keep re-signing rare.
+// Tapping toggles between thumbnail and full-width — deliberately no gallery.
+function ActivityPhoto({ path }: { path: string }) {
+  const [expanded, setExpanded] = useState(false);
+  const urlQuery = useQuery({
+    queryKey: ['activity-media-url', path],
+    queryFn: () => getActivityMediaUrl(path),
+    staleTime: SIGNED_URL_STALE_MS,
+  });
+
+  if (urlQuery.isError) {
+    return (
+      <View style={[styles.photoThumb, styles.photoPlaceholder]}>
+        <MaterialIcons name="broken-image" size={24} color="#9AA1A6" />
+      </View>
+    );
+  }
+  if (!urlQuery.data) {
+    return <View style={[styles.photoThumb, styles.photoPlaceholder]} />;
+  }
+
+  return (
+    <Pressable
+      style={({ pressed }) => [expanded && styles.photoExpandedWrap, pressed && styles.pressed]}
+      onPress={() => setExpanded((value) => !value)}>
+      <Image
+        source={{ uri: urlQuery.data }}
+        style={expanded ? styles.photoExpanded : styles.photoThumb}
+        contentFit="cover"
+        transition={150}
+      />
+    </Pressable>
   );
 }
 
@@ -501,6 +653,76 @@ const styles = StyleSheet.create({
   },
   noteText: {
     opacity: 0.8,
+  },
+  photoButtonRow: {
+    flexDirection: 'row',
+    gap: Spacing.sm,
+    marginBottom: Spacing.sm,
+  },
+  photoButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    borderWidth: 1,
+    borderColor: 'rgba(104, 112, 118, 0.25)',
+    borderRadius: Radii.pill,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+  },
+  photoButtonText: {
+    fontSize: 14,
+  },
+  photoPreviewRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: Spacing.sm,
+    marginBottom: Spacing.sm,
+  },
+  photoPreview: {
+    width: 72,
+    height: 72,
+    borderRadius: Radii.md,
+  },
+  photoRemove: {
+    padding: Spacing.xs,
+  },
+  errorBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.xs,
+    marginBottom: Spacing.sm,
+    backgroundColor: 'rgba(194, 59, 59, 0.10)',
+    borderRadius: Radii.sm,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+  },
+  errorText: {
+    color: '#c23b3b',
+    flex: 1,
+  },
+  photoRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: Spacing.sm,
+    marginTop: Spacing.xs,
+  },
+  photoThumb: {
+    width: 96,
+    height: 96,
+    borderRadius: Radii.md,
+  },
+  photoPlaceholder: {
+    backgroundColor: 'rgba(104, 112, 118, 0.12)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  photoExpandedWrap: {
+    width: '100%',
+  },
+  photoExpanded: {
+    width: '100%',
+    aspectRatio: 4 / 3,
+    borderRadius: Radii.md,
   },
   timeText: {
     fontSize: 12,
