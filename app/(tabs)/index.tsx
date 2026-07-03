@@ -9,6 +9,7 @@ import { ThemedView } from '@/components/themed-view';
 import { CategoryStyles, Radii, RoleColors, Spacing } from '@/constants/theme';
 import { useAuth } from '@/contexts/auth-provider';
 import {
+  activityChildNames,
   fetchActivities,
   fetchTemplates,
   logActivity,
@@ -28,6 +29,16 @@ function timeAgo(iso: string): string {
 
 function categoryStyle(category: string) {
   return CategoryStyles[category] ?? CategoryStyles.other;
+}
+
+// Compact display for an activity's children: "Jimbo", "Jimbo & Deuxelle",
+// or "Jimbo +2" when three or more siblings share one activity.
+function childrenLabel(activity: Activity): string | null {
+  const names = activityChildNames(activity);
+  if (names.length === 0) return null;
+  if (names.length === 1) return names[0];
+  if (names.length === 2) return `${names[0]} & ${names[1]}`;
+  return `${names[0]} +${names.length - 1}`;
 }
 
 // Android/Fabric clips the final glyph of a content-sized <Text> (e.g. inside a
@@ -110,7 +121,7 @@ function LogActivityScreen({
   loggedBy: string;
   accent: string;
 }) {
-  const [selectedChildId, setSelectedChildId] = useState(familyChildren[0].id);
+  const [selectedChildIds, setSelectedChildIds] = useState<string[]>([familyChildren[0].id]);
   const [noteText, setNoteText] = useState('');
   const [confirmation, setConfirmation] = useState<string | null>(null);
   const insets = useSafeAreaInsets();
@@ -118,19 +129,31 @@ function LogActivityScreen({
 
   const templatesQuery = useQuery({ queryKey: ['activity-templates'], queryFn: fetchTemplates });
   const recentQuery = useQuery({
-    queryKey: ['activities', selectedChildId],
-    queryFn: () => fetchActivities([selectedChildId]),
+    queryKey: ['activities', ...selectedChildIds],
+    queryFn: () => fetchActivities(selectedChildIds),
   });
 
   const invalidate = () => {
-    queryClient.invalidateQueries({ queryKey: ['activities', selectedChildId] });
+    queryClient.invalidateQueries({ queryKey: ['activities'] });
   };
 
-  useEffect(() => subscribeToActivities([selectedChildId], invalidate), [selectedChildId]);
+  const selectedChildrenKey = selectedChildIds.join(',');
+  useEffect(
+    () => subscribeToActivities(selectedChildIds, invalidate),
+    [selectedChildrenKey]
+  );
+
+  // Multi-select: tap toggles a child in/out, but at least one stays selected.
+  const toggleChild = (childId: string) => {
+    setSelectedChildIds((prev) => {
+      if (!prev.includes(childId)) return [...prev, childId];
+      return prev.length > 1 ? prev.filter((id) => id !== childId) : prev;
+    });
+  };
 
   const logMutation = useMutation({
     mutationFn: (params: { templateKey: string | null; category: string; note: string | null }) =>
-      logActivity({ childId: selectedChildId, loggedBy, ...params }),
+      logActivity({ childIds: selectedChildIds, loggedBy, ...params }),
     onSuccess: (_activity, params) => {
       const label = params.note ? 'Logged note' : 'Logged';
       setConfirmation(label);
@@ -139,32 +162,42 @@ function LogActivityScreen({
     },
   });
 
-  const selectedChild = familyChildren.find((c) => c.id === selectedChildId);
+  const selectedChild = familyChildren.find((c) => c.id === selectedChildIds[0]);
 
   return (
     <ScrollView contentContainerStyle={[styles.container, { paddingTop: insets.top + Spacing.xl }]}>
       <ThemedText type="title">Log an activity</ThemedText>
 
       {familyChildren.length > 1 ? (
-        <ThemedView style={styles.chipRow}>
-          {familyChildren.map((child) => {
-            const selected = selectedChildId === child.id;
-            return (
-              <Pressable
-                key={child.id}
-                style={({ pressed }) => [
-                  styles.chip,
-                  selected && { backgroundColor: accent, borderColor: accent },
-                  pressed && styles.pressed,
-                ]}
-                onPress={() => setSelectedChildId(child.id)}>
-                <ThemedText style={selected ? styles.chipTextSelected : undefined}>
-                  {noClip(child.full_name)}
-                </ThemedText>
-              </Pressable>
-            );
-          })}
-        </ThemedView>
+        <>
+          <ThemedView style={styles.chipRow}>
+            {familyChildren.map((child) => {
+              const selected = selectedChildIds.includes(child.id);
+              return (
+                <Pressable
+                  key={child.id}
+                  style={({ pressed }) => [
+                    styles.chip,
+                    selected && { backgroundColor: accent, borderColor: accent },
+                    pressed && styles.pressed,
+                  ]}
+                  onPress={() => toggleChild(child.id)}>
+                  <ThemedText style={selected ? styles.chipTextSelected : undefined}>
+                    {noClip(child.full_name)}
+                  </ThemedText>
+                </Pressable>
+              );
+            })}
+          </ThemedView>
+          {selectedChildIds.length > 1 ? (
+            <ThemedView style={styles.multiChildCue}>
+              <MaterialIcons name="group" size={14} color="#687076" />
+              <ThemedText style={styles.multiChildCueText}>
+                {noClip(`Logging for ${selectedChildIds.length} children`)}
+              </ThemedText>
+            </ThemedView>
+          ) : null}
+        </>
       ) : (
         <ThemedText style={styles.spacer}>{selectedChild?.full_name}</ThemedText>
       )}
@@ -347,6 +380,7 @@ function ActivityList({
     <ThemedView style={styles.spacer}>
       {activities.map((activity) => {
         const { icon, color } = categoryStyle(activity.category);
+        const names = childrenLabel(activity);
         return (
           <ThemedView key={activity.id} style={styles.activityCard}>
             <View style={[styles.activityIconBadge, { backgroundColor: color + '22' }]}>
@@ -355,7 +389,7 @@ function ActivityList({
             <ThemedView style={styles.activityBody}>
               <ThemedText type="defaultSemiBold">
                 {activity.activity_templates?.label ?? activity.note ?? activity.category}
-                {showChildName && activity.children ? ` · ${activity.children.full_name}` : ''}
+                {showChildName && names ? ` · ${names}` : ''}
               </ThemedText>
               {activity.template_key === 'custom' && activity.note ? (
                 <ThemedText style={styles.noteText}>{activity.note}</ThemedText>
@@ -453,6 +487,17 @@ const styles = StyleSheet.create({
   chipTextSelected: {
     color: '#fff',
     fontWeight: '600',
+  },
+  multiChildCue: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.xs,
+    marginTop: Spacing.xs,
+    alignSelf: 'flex-start',
+  },
+  multiChildCueText: {
+    fontSize: 13,
+    opacity: 0.7,
   },
   templateGrid: {
     flexDirection: 'row',
