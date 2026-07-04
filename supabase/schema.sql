@@ -6,7 +6,8 @@
 --   • Roles: parent | nanny
 --   • Many-to-many: nanny↔many families, many nannies↔one family, multi-parent
 --   • Invitations via 6-digit code (no deep links — revisit post-launch)
---   • One child per activity (no multi-sibling logging — revisit post-launch)
+--   • Multi-sibling logging via activity_children join table; activities.child_id
+--     stays populated as the "primary" (first-selected) child for compatibility
 --   • Photos: media_urls stores Supabase Storage PATHS in the private
 --     'activity-media' bucket (see STORAGE section at the end)
 -- =============================================================================
@@ -105,7 +106,11 @@ create table activity_templates (
   is_active   boolean not null default true
 );
 
--- activities: the heart of the app — exactly ONE child per row ---------------
+-- activities: the heart of the app --------------------------------------------
+-- child_id is the "primary" child (the first one selected when logging); the
+-- full set of children lives in activity_children below. Keeping child_id
+-- populated preserves existing queries, the realtime publication, and the
+-- deployed push function.
 create table activities (
   id           uuid primary key default gen_random_uuid(),
   child_id     uuid not null references children(id) on delete cascade,
@@ -119,6 +124,16 @@ create table activities (
 );
 create index idx_activities_child_time on activities(child_id, occurred_at desc);
 create index idx_activities_logged_by on activities(logged_by);
+
+-- activity_children: activity ↔ child (M:N) -----------------------------------
+-- Multi-sibling logging: one activity can be logged against several children
+-- at once. Every activity has at least the row for its primary child_id.
+create table activity_children (
+  activity_id uuid not null references activities(id) on delete cascade,
+  child_id    uuid not null references children(id) on delete cascade,
+  primary key (activity_id, child_id)
+);
+create index idx_activity_children_child on activity_children(child_id);
 
 -- push_tokens: Expo push tokens per device, owned by a profile --------------
 -- A profile can have multiple rows (multiple devices). The Edge Function that
@@ -219,6 +234,7 @@ alter table caregiver_assignments  enable row level security;
 alter table invitations            enable row level security;
 alter table activity_templates     enable row level security;
 alter table activities             enable row level security;
+alter table activity_children      enable row level security;
 alter table push_tokens            enable row level security;
 
 -- profiles --------------------------------------------------------------------
@@ -301,6 +317,21 @@ create policy "caregivers delete own activities"
   on activities for delete using (
     logged_by = auth.uid()
     and is_family_caregiver(family_of_child(child_id))
+  );
+
+-- activity_children -------------------------------------------------------
+-- Mirrors the activities policies: family read, caregiver-only write (and only
+-- rows for activities they logged themselves). Rows are removed via the
+-- on-delete cascade when an activity is deleted, so no delete policy is needed.
+create policy "read activity children in your families"
+  on activity_children for select using (has_family_access(family_of_child(child_id)));
+create policy "caregivers link activity children"
+  on activity_children for insert with check (
+    is_family_caregiver(family_of_child(child_id))
+    and exists (
+      select 1 from activities a
+      where a.id = activity_id and a.logged_by = auth.uid()
+    )
   );
 
 -- push_tokens -------------------------------------------------------------
