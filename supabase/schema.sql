@@ -8,7 +8,8 @@
 --   • Invitations via 6-digit code (no deep links — revisit post-launch)
 --   • Multi-sibling logging via activity_children join table; activities.child_id
 --     stays populated as the "primary" (first-selected) child for compatibility
---   • Photos deferred: media_urls column exists but UI comes later
+--   • Photos: media_urls stores Supabase Storage PATHS in the private
+--     'activity-media' bucket (see STORAGE section at the end)
 -- =============================================================================
 
 -- Extensions ------------------------------------------------------------------
@@ -117,7 +118,7 @@ create table activities (
   template_key text references activity_templates(key), -- null when free-text/custom
   category     activity_category not null,
   note         text,                                    -- free-text detail
-  media_urls   text[] not null default '{}',            -- deferred photos (schema-ready)
+  media_urls   text[] not null default '{}',            -- storage PATHS in 'activity-media' (see STORAGE section)
   occurred_at  timestamptz not null default now(),
   created_at   timestamptz not null default now()
 );
@@ -416,6 +417,55 @@ begin
   return fam;
 end;
 $$;
+
+-- =============================================================================
+-- STORAGE: activity photos ('activity-media' bucket)
+-- =============================================================================
+-- Applied via supabase/migrations/20260703000000_activity_media_storage.sql —
+-- mirrored here because this file is the source of truth for the data model.
+--
+-- Objects are keyed by convention <family_id>/<filename>, so RLS derives the
+-- family from the first path segment and reuses the helpers above.
+-- activities.media_urls stores these storage PATHS (never URLs): the bucket is
+-- PRIVATE (photos of children) and the app renders via short-lived signed URLs.
+
+insert into storage.buckets (id, name, public)
+values ('activity-media', 'activity-media', false)
+on conflict (id) do nothing;
+
+-- First path segment of an object name, as a family uuid (null when the name
+-- doesn't follow the convention → policies deny instead of erroring on cast).
+create or replace function public.storage_family_id(object_name text)
+returns uuid
+language sql
+immutable
+as $$
+  select case
+    when split_part(object_name, '/', 1)
+         ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+    then split_part(object_name, '/', 1)::uuid
+  end;
+$$;
+
+-- Only an assigned nanny of the family may upload into that family's folder.
+create policy "caregivers upload activity media"
+  on storage.objects for insert to authenticated
+  with check (
+    bucket_id = 'activity-media'
+    and public.is_family_caregiver(public.storage_family_id(name))
+  );
+
+-- Anyone linked to the family (parent or nanny) may read its photos — this is
+-- what authorizes createSignedUrl/download for feed rendering.
+create policy "family reads activity media"
+  on storage.objects for select to authenticated
+  using (
+    bucket_id = 'activity-media'
+    and public.has_family_access(public.storage_family_id(name))
+  );
+
+-- No update/delete policies on purpose: the app has no photo edit/remove UI
+-- yet, so nobody can mutate or destroy uploaded photos through the client.
 
 -- =============================================================================
 -- SEED: activity templates (tap-to-log presets)

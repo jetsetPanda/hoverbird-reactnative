@@ -37,6 +37,15 @@ module.exports = {
       'expo-router',
       'expo-notifications',
       [
+        'expo-image-picker',
+        {
+          photosPermission:
+            'Allow $(PRODUCT_NAME) to access your photos so you can attach them to activity logs.',
+          cameraPermission:
+            'Allow $(PRODUCT_NAME) to use the camera to take photos for activity logs.',
+        },
+      ],
+      [
         'expo-splash-screen',
         {
           image: './assets/images/splash-icon.png',

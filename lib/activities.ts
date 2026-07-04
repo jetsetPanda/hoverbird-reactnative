@@ -93,6 +93,9 @@ export async function logActivity(params: {
   templateKey: string | null;
   category: string;
   note: string | null;
+  // Storage PATHS in the private 'activity-media' bucket (see lib/media.ts),
+  // never URLs — the feed resolves them to short-lived signed URLs.
+  mediaUrls?: string[];
 }): Promise<Activity> {
   const [primaryChildId] = params.childIds;
   if (!primaryChildId) throw new Error('logActivity requires at least one child');
@@ -108,6 +111,7 @@ export async function logActivity(params: {
       template_key: params.templateKey,
       category: params.category,
       note: params.note,
+      media_urls: params.mediaUrls ?? [],
     })
     .select()
     .single();
