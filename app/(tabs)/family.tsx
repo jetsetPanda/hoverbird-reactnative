@@ -15,7 +15,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { Radii, RoleColors, Spacing } from '@/constants/theme';
+import { Radii, RoleColors, Spacing, TabBarClearance } from '@/constants/theme';
 import { useAuth, type UserRole } from '@/contexts/auth-provider';
 import {
   addChild,
@@ -715,6 +715,7 @@ function CreateInviteForm({
 const styles = StyleSheet.create({
   container: {
     padding: Spacing.xl,
+    paddingBottom: TabBarClearance,
     gap: Spacing.lg,
   },
   section: {

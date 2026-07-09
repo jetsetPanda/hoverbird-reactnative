@@ -18,7 +18,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { CategoryStyles, Radii, RoleColors, Spacing } from '@/constants/theme';
+import { CategoryStyles, Radii, RoleColors, Spacing, TabBarClearance } from '@/constants/theme';
 import { useAuth } from '@/contexts/auth-provider';
 import {
   activityChildNames,
@@ -645,6 +645,7 @@ function ActivityPhoto({ path }: { path: string }) {
 const styles = StyleSheet.create({
   container: {
     padding: Spacing.xl,
+    paddingBottom: TabBarClearance,
     gap: Spacing.md,
   },
   center: {

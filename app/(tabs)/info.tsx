@@ -4,7 +4,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { Radii, RoleColors, Spacing } from '@/constants/theme';
+import { Radii, RoleColors, Spacing, TabBarClearance } from '@/constants/theme';
 import { useAuth } from '@/contexts/auth-provider';
 
 export default function AccountScreen() {
@@ -25,7 +25,11 @@ export default function AccountScreen() {
   };
 
   return (
-    <ThemedView style={[styles.container, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>
+    <ThemedView
+      style={[
+        styles.container,
+        { paddingTop: insets.top, paddingBottom: insets.bottom + TabBarClearance },
+      ]}>
       <View style={[styles.avatar, { backgroundColor: accent + '22' }]}>
         <ThemedText style={[styles.avatarText, { color: accent }]}>
           {profile?.full_name?.charAt(0).toUpperCase() ?? '?'}
