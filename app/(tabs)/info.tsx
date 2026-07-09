@@ -1,5 +1,5 @@
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { Alert, Platform, Pressable, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { ThemedText } from '@/components/themed-text';
@@ -8,9 +8,21 @@ import { Radii, RoleColors, Spacing } from '@/constants/theme';
 import { useAuth } from '@/contexts/auth-provider';
 
 export default function AccountScreen() {
-  const { profile, signOut } = useAuth();
+  const { session, profile, signOut } = useAuth();
   const insets = useSafeAreaInsets();
   const accent = profile ? RoleColors[profile.role] : RoleColors.nanny;
+
+  const confirmSignOut = () => {
+    // Alert.alert is a silent no-op on react-native-web.
+    if (Platform.OS === 'web') {
+      if (window.confirm('Sign out? You can sign back in anytime.')) signOut();
+      return;
+    }
+    Alert.alert('Sign out?', 'You can sign back in anytime.', [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Sign out', style: 'destructive', onPress: signOut },
+    ]);
+  };
 
   return (
     <ThemedView style={[styles.container, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>
@@ -23,6 +35,9 @@ export default function AccountScreen() {
       <ThemedText type="title" style={styles.name}>
         {profile?.full_name}
       </ThemedText>
+      {session?.user.email ? (
+        <ThemedText style={styles.email}>{session.user.email}</ThemedText>
+      ) : null}
       <View style={[styles.roleBadge, { backgroundColor: accent }]}>
         <ThemedText style={styles.roleText}>
           {profile?.role === 'parent' ? 'Parent' : 'Nanny'}
@@ -30,8 +45,10 @@ export default function AccountScreen() {
       </View>
 
       <Pressable
+        accessibilityRole="button"
+        accessibilityLabel="Sign out"
         style={({ pressed }) => [styles.signOutButton, pressed && styles.pressed]}
-        onPress={signOut}>
+        onPress={confirmSignOut}>
         <MaterialIcons name="logout" size={18} color="#d33" />
         <ThemedText style={styles.signOutText}>Sign out</ThemedText>
       </Pressable>
@@ -60,6 +77,10 @@ const styles = StyleSheet.create({
   },
   name: {
     marginTop: Spacing.sm,
+  },
+  email: {
+    opacity: 0.6,
+    marginTop: -Spacing.sm,
   },
   roleBadge: {
     paddingHorizontal: Spacing.md,

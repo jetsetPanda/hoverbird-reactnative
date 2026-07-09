@@ -14,6 +14,7 @@ export default function SignInScreen() {
   const insets = useSafeAreaInsets();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -56,11 +57,22 @@ export default function SignInScreen() {
           style={styles.input}
           placeholder="Password"
           placeholderTextColor="#687076"
-          secureTextEntry
+          secureTextEntry={!showPassword}
           autoComplete="password"
           value={password}
           onChangeText={setPassword}
         />
+        <Pressable
+          hitSlop={8}
+          accessibilityRole="button"
+          accessibilityLabel={showPassword ? 'Hide password' : 'Show password'}
+          onPress={() => setShowPassword((v) => !v)}>
+          <MaterialIcons
+            name={showPassword ? 'visibility-off' : 'visibility'}
+            size={20}
+            color="#687076"
+          />
+        </Pressable>
       </View>
 
       {error ? (

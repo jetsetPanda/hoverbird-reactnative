@@ -5,7 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { Radii, RoleColors } from '@/constants/theme';
+import { Radii, RoleColors, Spacing } from '@/constants/theme';
 import { useAuth, type UserRole } from '@/contexts/auth-provider';
 
 export default function CompleteProfileScreen() {
@@ -60,7 +60,7 @@ export default function CompleteProfileScreen() {
           ]}
           onPress={() => setRole('parent')}>
           <MaterialIcons
-            name="escalator-warning"
+            name="supervisor-account"
             size={22}
             color={role === 'parent' ? '#fff' : '#687076'}
           />
@@ -117,29 +117,29 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     justifyContent: 'center',
-    padding: 24,
-    gap: 12,
+    padding: Spacing.xl,
+    gap: Spacing.md,
   },
   title: {
-    marginBottom: 4,
+    marginBottom: Spacing.xs,
   },
   subtitle: {
-    marginBottom: 12,
+    marginBottom: Spacing.md,
   },
   input: {
     borderWidth: 1,
     borderColor: '#687076',
-    borderRadius: 8,
+    borderRadius: Radii.sm,
     paddingHorizontal: 14,
     paddingVertical: 12,
     fontSize: 16,
   },
   label: {
-    marginTop: 8,
+    marginTop: Spacing.sm,
   },
   roleRow: {
     flexDirection: 'row',
-    gap: 12,
+    gap: Spacing.md,
   },
   roleOption: {
     flex: 1,
@@ -165,10 +165,10 @@ const styles = StyleSheet.create({
   },
   button: {
     backgroundColor: '#0a7ea4',
-    borderRadius: 8,
+    borderRadius: Radii.sm,
     paddingVertical: 14,
     alignItems: 'center',
-    marginTop: 8,
+    marginTop: Spacing.sm,
   },
   buttonDisabled: {
     opacity: 0.6,
@@ -178,7 +178,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   signOutButton: {
-    marginTop: 16,
+    marginTop: Spacing.lg,
     alignSelf: 'center',
   },
 });

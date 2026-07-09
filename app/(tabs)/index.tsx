@@ -1,9 +1,19 @@
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import * as Haptics from 'expo-haptics';
 import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
+import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
+import {
+  ActivityIndicator,
+  Pressable,
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  TextInput,
+  View,
+} from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { ThemedText } from '@/components/themed-text';
@@ -20,6 +30,7 @@ import {
 } from '@/lib/activities';
 import { fetchChildren, fetchMyFamily, type Child } from '@/lib/families';
 import { getActivityMediaUrl, SIGNED_URL_STALE_MS, uploadActivityPhoto } from '@/lib/media';
+import { noClip } from '@/lib/text';
 
 function timeAgo(iso: string): string {
   const minutes = Math.floor((Date.now() - new Date(iso).getTime()) / 60000);
@@ -44,18 +55,20 @@ function childrenLabel(activity: Activity): string | null {
   return `${names[0]} +${names.length - 1}`;
 }
 
-// Android/Fabric clips the final glyph of a content-sized <Text> (e.g. inside a
-// pill that shrink-wraps its label). A trailing non-breaking space keeps its
-// advance width — unlike a regular space, which StaticLayout strips — so the
-// real last character isn't sitting on the clipped line boundary.
-function noClip(label: string): string {
-  // String.fromCharCode(160) is a non-breaking space.
-  return label + String.fromCharCode(160);
+// "Jimbo", "Jimbo & Deuxelle", or "Jimbo +2" for a set of selected children.
+function namesLabel(children: Child[], ids: string[]): string {
+  const names = ids
+    .map((id) => children.find((c) => c.id === id)?.full_name)
+    .filter((n): n is string => !!n);
+  if (names.length <= 1) return names[0] ?? '';
+  if (names.length === 2) return `${names[0]} & ${names[1]}`;
+  return `${names[0]} +${names.length - 1}`;
 }
 
 export default function HomeScreen() {
   const { profile } = useAuth();
   const insets = useSafeAreaInsets();
+  const router = useRouter();
   const accent = profile ? RoleColors[profile.role] : RoleColors.nanny;
 
   const familyQuery = useQuery({
@@ -86,9 +99,22 @@ export default function HomeScreen() {
           No family yet
         </ThemedText>
         <ThemedText style={styles.emptyText}>
-          Set up your family in the Family tab first — you&apos;ll see activity logging here once
-          there&apos;s a child to log for.
+          {profile?.role === 'parent'
+            ? 'Set up your family first — you’ll see the activity feed here once there’s a child to follow.'
+            : 'Join a family first — you’ll see activity logging here once there’s a child to log for.'}
         </ThemedText>
+        <Pressable
+          style={({ pressed }) => [
+            styles.button,
+            styles.emptyButton,
+            { backgroundColor: accent },
+            pressed && styles.pressed,
+          ]}
+          onPress={() => router.push('/family')}>
+          <ThemedText style={styles.buttonText}>
+            {profile?.role === 'parent' ? 'Set up your family' : 'Enter invite code'}
+          </ThemedText>
+        </Pressable>
       </ThemedView>
     );
   }
@@ -102,8 +128,22 @@ export default function HomeScreen() {
           No children yet
         </ThemedText>
         <ThemedText style={styles.emptyText}>
-          Add a child in the Family tab to start logging activities.
+          {profile?.role === 'parent'
+            ? 'Add a child to start logging activities.'
+            : 'No children have been added to this family yet.'}
         </ThemedText>
+        {profile?.role === 'parent' ? (
+          <Pressable
+            style={({ pressed }) => [
+              styles.button,
+              styles.emptyButton,
+              { backgroundColor: accent },
+              pressed && styles.pressed,
+            ]}
+            onPress={() => router.push('/family')}>
+            <ThemedText style={styles.buttonText}>Add a child</ThemedText>
+          </Pressable>
+        ) : null}
       </ThemedView>
     );
   }
@@ -167,6 +207,7 @@ function LogActivityScreen({
       templateKey: string | null;
       category: string;
       note: string | null;
+      label: string;
     }) => {
       const mediaUrls = pendingPhoto
         ? [
@@ -177,14 +218,16 @@ function LogActivityScreen({
             }),
           ]
         : [];
-      return logActivity({ childIds: selectedChildIds, loggedBy, mediaUrls, ...params });
+      const { label: _label, ...insertParams } = params;
+      return logActivity({ childIds: selectedChildIds, loggedBy, mediaUrls, ...insertParams });
     },
     onSuccess: (_activity, params) => {
-      const label = params.note ? 'Logged note' : 'Logged';
-      setConfirmation(label);
+      const forNames = namesLabel(familyChildren, selectedChildIds);
+      setConfirmation(forNames ? `Logged ${params.label} for ${forNames}` : `Logged ${params.label}`);
       setPendingPhoto(null);
       setPhotoError(null);
-      setTimeout(() => setConfirmation(null), 2000);
+      setTimeout(() => setConfirmation(null), 2500);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
       invalidate();
     },
     onError: () => {
@@ -227,8 +270,18 @@ function LogActivityScreen({
 
   const selectedChild = familyChildren.find((c) => c.id === selectedChildIds[0]);
 
+  const [refreshing, setRefreshing] = useState(false);
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await Promise.all([recentQuery.refetch(), templatesQuery.refetch()]);
+    setRefreshing(false);
+  };
+
   return (
-    <ScrollView contentContainerStyle={[styles.container, { paddingTop: insets.top + Spacing.xl }]}>
+    <ScrollView
+      contentContainerStyle={[styles.container, { paddingTop: insets.top + Spacing.xl }]}
+      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+      keyboardShouldPersistTaps="handled">
       <ThemedText type="title">Log an activity</ThemedText>
 
       {familyChildren.length > 1 ? (
@@ -239,6 +292,9 @@ function LogActivityScreen({
               return (
                 <Pressable
                   key={child.id}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected }}
+                  accessibilityLabel={`Log for ${child.full_name}`}
                   style={({ pressed }) => [
                     styles.chip,
                     selected && { backgroundColor: accent, borderColor: accent },
@@ -290,6 +346,7 @@ function LogActivityScreen({
                       templateKey: template.key,
                       category: template.category,
                       note: null,
+                      label: template.label,
                     })
                   }>
                   <View style={[styles.templateIconBadge, { backgroundColor: color + '22' }]}>
@@ -304,9 +361,10 @@ function LogActivityScreen({
 
       <ThemedView style={styles.spacer}>
         <TextInput
-          style={styles.input}
+          style={[styles.input, styles.noteInput]}
           placeholder="Something else…"
           placeholderTextColor="#687076"
+          multiline
           value={noteText}
           onChangeText={setNoteText}
         />
@@ -317,8 +375,13 @@ function LogActivityScreen({
               style={styles.photoPreview}
               contentFit="cover"
             />
+            <View style={styles.photoPreviewInfo}>
+              <ThemedText style={styles.photoCueText}>Attaches to your next log</ThemedText>
+            </View>
             <Pressable
               hitSlop={8}
+              accessibilityRole="button"
+              accessibilityLabel="Remove photo"
               disabled={logMutation.isPending}
               onPress={() => {
                 setPendingPhoto(null);
@@ -362,8 +425,14 @@ function LogActivityScreen({
           ]}
           disabled={(!noteText.trim() && !pendingPhoto) || logMutation.isPending}
           onPress={() => {
+            const hasNote = !!noteText.trim();
             logMutation.mutate(
-              { templateKey: 'custom', category: 'other', note: noteText.trim() || null },
+              {
+                templateKey: 'custom',
+                category: 'other',
+                note: noteText.trim() || null,
+                label: hasNote && pendingPhoto ? 'note + photo' : hasNote ? 'note' : 'photo',
+              },
               { onSuccess: () => setNoteText('') }
             );
           }}>
@@ -371,7 +440,11 @@ function LogActivityScreen({
             <ActivityIndicator color="#fff" />
           ) : (
             <ThemedText style={styles.buttonText}>
-              {noteText.trim() || !pendingPhoto ? 'Log note' : 'Log photo'}
+              {noteText.trim() && pendingPhoto
+                ? 'Log note + photo'
+                : pendingPhoto && !noteText.trim()
+                  ? 'Log photo'
+                  : 'Log note'}
             </ThemedText>
           )}
         </Pressable>
@@ -380,7 +453,7 @@ function LogActivityScreen({
       <ThemedText type="subtitle" style={styles.spacer}>
         Recent
       </ThemedText>
-      <ActivityList activities={recentQuery.data ?? []} showChildName={false} />
+      <ActivityList activities={recentQuery.data ?? []} showChildName={familyChildren.length > 1} />
     </ScrollView>
   );
 }
@@ -415,13 +488,24 @@ function ActivityFeedScreen({
     ? (activitiesQuery.data ?? []).filter((a) => a.category === categoryFilter)
     : activitiesQuery.data ?? [];
 
+  const [refreshing, setRefreshing] = useState(false);
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await activitiesQuery.refetch();
+    setRefreshing(false);
+  };
+
   return (
-    <ScrollView contentContainerStyle={[styles.container, { paddingTop: insets.top + Spacing.xl }]}>
+    <ScrollView
+      contentContainerStyle={[styles.container, { paddingTop: insets.top + Spacing.xl }]}
+      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}>
       <ThemedText type="title">Activity feed</ThemedText>
 
       {categories.length > 0 ? (
         <ThemedView style={[styles.chipRow, styles.spacer]}>
           <Pressable
+            accessibilityRole="button"
+            accessibilityState={{ selected: !categoryFilter }}
             style={({ pressed }) => [
               styles.chip,
               !categoryFilter && { backgroundColor: accent, borderColor: accent },
@@ -438,6 +522,9 @@ function ActivityFeedScreen({
             return (
               <Pressable
                 key={category}
+                accessibilityRole="button"
+                accessibilityState={{ selected }}
+                accessibilityLabel={`Filter by ${category}`}
                 style={({ pressed }) => [
                   styles.chip,
                   styles.categoryChip,
@@ -603,6 +690,23 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     fontSize: 16,
     marginBottom: Spacing.sm,
+  },
+  noteInput: {
+    minHeight: 48,
+    maxHeight: 96,
+    textAlignVertical: 'top',
+  },
+  emptyButton: {
+    paddingHorizontal: Spacing.xl,
+    marginTop: Spacing.sm,
+  },
+  photoPreviewInfo: {
+    flex: 1,
+    justifyContent: 'center',
+  },
+  photoCueText: {
+    fontSize: 13,
+    opacity: 0.6,
   },
   button: {
     borderRadius: Radii.sm,

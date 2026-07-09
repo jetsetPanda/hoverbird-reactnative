@@ -14,6 +14,7 @@ export default function SignUpScreen() {
   const insets = useSafeAreaInsets();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [needsEmailConfirmation, setNeedsEmailConfirmation] = useState(false);
@@ -82,12 +83,24 @@ export default function SignUpScreen() {
           style={styles.input}
           placeholder="Password"
           placeholderTextColor="#687076"
-          secureTextEntry
+          secureTextEntry={!showPassword}
           autoComplete="new-password"
           value={password}
           onChangeText={setPassword}
         />
+        <Pressable
+          hitSlop={8}
+          accessibilityRole="button"
+          accessibilityLabel={showPassword ? 'Hide password' : 'Show password'}
+          onPress={() => setShowPassword((v) => !v)}>
+          <MaterialIcons
+            name={showPassword ? 'visibility-off' : 'visibility'}
+            size={20}
+            color="#687076"
+          />
+        </Pressable>
       </View>
+      <ThemedText style={styles.passwordHint}>At least 6 characters</ThemedText>
 
       {error ? (
         <View style={styles.errorBanner}>
@@ -160,6 +173,11 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingVertical: 12,
     fontSize: 16,
+  },
+  passwordHint: {
+    fontSize: 13,
+    opacity: 0.6,
+    marginTop: -Spacing.xs,
   },
   errorBanner: {
     flexDirection: 'row',
