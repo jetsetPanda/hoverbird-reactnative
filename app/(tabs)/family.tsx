@@ -1,12 +1,21 @@
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
 import { useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
+import {
+  ActivityIndicator,
+  Pressable,
+  RefreshControl,
+  ScrollView,
+  Share,
+  StyleSheet,
+  TextInput,
+  View,
+} from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { Radii, RoleColors, Spacing } from '@/constants/theme';
+import { Radii, RoleColors, Spacing, TabBarClearance } from '@/constants/theme';
 import { useAuth, type UserRole } from '@/contexts/auth-provider';
 import {
   addChild,
@@ -23,6 +32,7 @@ import {
   revokeInvite,
   type Invitation,
 } from '@/lib/invitations';
+import { noClip } from '@/lib/text';
 
 const REDEEM_ERROR_MESSAGES: Record<string, string> = {
   no_profile: 'Your profile could not be found. Try signing out and back in.',
@@ -30,6 +40,16 @@ const REDEEM_ERROR_MESSAGES: Record<string, string> = {
   expired: 'That code has expired. Ask for a new one.',
   role_mismatch: 'This code is for a different role than yours.',
 };
+
+// Opens the system share sheet with a ready-to-send invite message. Share is
+// built into RN (no clipboard dependency — that would need a native rebuild).
+function shareInviteCode(code: string, role: UserRole, familyName: string) {
+  Share.share({
+    message: `You're invited to join ${familyName} on Hoverbird as a ${
+      role === 'nanny' ? 'nanny' : 'co-parent'
+    }. Your invite code: ${code}`,
+  }).catch(() => {});
+}
 
 function formatAge(birthdate: string | null): string | null {
   if (!birthdate) return null;
@@ -69,7 +89,9 @@ export default function FamilyScreen() {
   if (!familyQuery.data) {
     if (profile?.role === 'nanny') {
       return (
-        <ScrollView contentContainerStyle={[styles.container, { paddingTop: insets.top + Spacing.xl }]}>
+        <ScrollView
+          contentContainerStyle={[styles.container, { paddingTop: insets.top + Spacing.xl }]}
+          keyboardShouldPersistTaps="handled">
           <View style={styles.logoBadge}>
             <MaterialIcons name="group-add" size={32} color={buttonColor} />
           </View>
@@ -85,7 +107,9 @@ export default function FamilyScreen() {
       );
     }
     return (
-      <ScrollView contentContainerStyle={[styles.container, { paddingTop: insets.top + Spacing.xl }]}>
+      <ScrollView
+        contentContainerStyle={[styles.container, { paddingTop: insets.top + Spacing.xl }]}
+        keyboardShouldPersistTaps="handled">
         <View style={styles.logoBadge}>
           <MaterialIcons name="home" size={32} color={buttonColor} />
         </View>
@@ -96,8 +120,21 @@ export default function FamilyScreen() {
     );
   }
 
+  const onRefresh = async () => {
+    await Promise.all([
+      familyQuery.refetch(),
+      childrenQuery.refetch(),
+      queryClient.invalidateQueries({ queryKey: ['invites'] }),
+    ]);
+  };
+
   return (
-    <ScrollView contentContainerStyle={[styles.container, { paddingTop: insets.top + Spacing.xl }]}>
+    <ScrollView
+      contentContainerStyle={[styles.container, { paddingTop: insets.top + Spacing.xl }]}
+      refreshControl={
+        <RefreshControl refreshing={familyQuery.isRefetching} onRefresh={onRefresh} />
+      }
+      keyboardShouldPersistTaps="handled">
       <ThemedText type="title">{familyQuery.data.name}</ThemedText>
 
       {childrenQuery.isLoading ? (
@@ -134,6 +171,7 @@ export default function FamilyScreen() {
           <InvitesSection
             buttonColor={buttonColor}
             familyId={familyQuery.data.id}
+            familyName={familyQuery.data.name}
             inviterId={profile.id}
           />
         </>
@@ -239,6 +277,8 @@ function ChildRow({
       {canEdit ? (
         <Pressable
           hitSlop={8}
+          accessibilityRole="button"
+          accessibilityLabel={`Edit ${child.full_name}`}
           style={({ pressed }) => pressed && styles.pressed}
           onPress={() => setIsEditing(true)}>
           <MaterialIcons name="edit" size={20} color={buttonColor} />
@@ -424,23 +464,37 @@ function AddChildForm({
 
       {error ? <ThemedText style={styles.error}>{error}</ThemedText> : null}
 
-      <Pressable
-        style={({ pressed }) => [
-          styles.button,
-          { backgroundColor: buttonColor },
-          (!fullName.trim() || mutation.isPending || pressed) && styles.buttonDisabled,
-        ]}
-        disabled={!fullName.trim() || mutation.isPending}
-        onPress={() => {
-          setError(null);
-          mutation.mutate();
-        }}>
-        {mutation.isPending ? (
-          <ActivityIndicator color="#fff" />
-        ) : (
-          <ThemedText style={styles.buttonText}>Save child</ThemedText>
-        )}
-      </Pressable>
+      <ThemedView style={styles.editActions}>
+        <Pressable
+          style={({ pressed }) => [styles.secondaryButton, pressed && styles.buttonDisabled]}
+          disabled={mutation.isPending}
+          onPress={() => {
+            setFullName('');
+            setBirthdate('');
+            setError(null);
+            setIsOpen(false);
+          }}>
+          <ThemedText style={styles.secondaryButtonText}>Cancel</ThemedText>
+        </Pressable>
+        <Pressable
+          style={({ pressed }) => [
+            styles.button,
+            styles.flex1,
+            { backgroundColor: buttonColor },
+            (!fullName.trim() || mutation.isPending || pressed) && styles.buttonDisabled,
+          ]}
+          disabled={!fullName.trim() || mutation.isPending}
+          onPress={() => {
+            setError(null);
+            mutation.mutate();
+          }}>
+          {mutation.isPending ? (
+            <ActivityIndicator color="#fff" />
+          ) : (
+            <ThemedText style={styles.buttonText}>Save child</ThemedText>
+          )}
+        </Pressable>
+      </ThemedView>
     </ThemedView>
   );
 }
@@ -448,10 +502,12 @@ function AddChildForm({
 function InvitesSection({
   buttonColor,
   familyId,
+  familyName,
   inviterId,
 }: {
   buttonColor: string;
   familyId: string;
+  familyName: string;
   inviterId: string;
 }) {
   const queryClient = useQueryClient();
@@ -471,7 +527,7 @@ function InvitesSection({
         <ActivityIndicator style={styles.spacer} />
       ) : invitesQuery.data?.length ? (
         invitesQuery.data.map((invite) => (
-          <InviteRow key={invite.id} invite={invite} onRevoked={invalidate} />
+          <InviteRow key={invite.id} invite={invite} familyName={familyName} onRevoked={invalidate} />
         ))
       ) : (
         <ThemedText style={styles.emptyText}>No pending invites.</ThemedText>
@@ -480,6 +536,7 @@ function InvitesSection({
       <CreateInviteForm
         buttonColor={buttonColor}
         familyId={familyId}
+        familyName={familyName}
         inviterId={inviterId}
         onCreated={invalidate}
       />
@@ -487,7 +544,15 @@ function InvitesSection({
   );
 }
 
-function InviteRow({ invite, onRevoked }: { invite: Invitation; onRevoked: () => void }) {
+function InviteRow({
+  invite,
+  familyName,
+  onRevoked,
+}: {
+  invite: Invitation;
+  familyName: string;
+  onRevoked: () => void;
+}) {
   const mutation = useMutation({
     mutationFn: () => revokeInvite(invite.id),
     onSuccess: onRevoked,
@@ -497,7 +562,7 @@ function InviteRow({ invite, onRevoked }: { invite: Invitation; onRevoked: () =>
     <ThemedView style={styles.inviteRow}>
       <View style={styles.inviteIconBadge}>
         <MaterialIcons
-          name={invite.invited_role === 'nanny' ? 'volunteer-activism' : 'escalator-warning'}
+          name={invite.invited_role === 'nanny' ? 'volunteer-activism' : 'supervisor-account'}
           size={20}
           color="#687076"
         />
@@ -510,15 +575,29 @@ function InviteRow({ invite, onRevoked }: { invite: Invitation; onRevoked: () =>
           {invite.invited_role === 'nanny' ? 'Nanny' : 'Co-parent'} · expires{' '}
           {new Date(invite.expires_at).toLocaleDateString()}
         </ThemedText>
-        <Pressable
-          style={styles.revokeButton}
-          hitSlop={8}
-          disabled={mutation.isPending}
-          onPress={() => mutation.mutate()}>
-          <ThemedText type="link" style={styles.revokeText}>
-            Revoke
-          </ThemedText>
-        </Pressable>
+        <View style={styles.inviteActions}>
+          <Pressable
+            hitSlop={8}
+            accessibilityRole="button"
+            accessibilityLabel={`Share invite code ${invite.code}`}
+            style={({ pressed }) => [styles.inviteAction, pressed && styles.pressed]}
+            onPress={() => shareInviteCode(invite.code, invite.invited_role, familyName)}>
+            <MaterialIcons name="share" size={16} color="#0a7ea4" />
+            <ThemedText type="link">{noClip('Share')}</ThemedText>
+          </Pressable>
+          <Pressable
+            hitSlop={8}
+            accessibilityRole="button"
+            accessibilityLabel="Revoke this invite"
+            disabled={mutation.isPending}
+            style={({ pressed }) => [styles.inviteAction, pressed && styles.pressed]}
+            onPress={() => mutation.mutate()}>
+            <MaterialIcons name="delete-outline" size={16} color="#d33" />
+            <ThemedText type="link" style={styles.revokeLinkText}>
+              {noClip('Revoke')}
+            </ThemedText>
+          </Pressable>
+        </View>
       </ThemedView>
     </ThemedView>
   );
@@ -527,11 +606,13 @@ function InviteRow({ invite, onRevoked }: { invite: Invitation; onRevoked: () =>
 function CreateInviteForm({
   buttonColor,
   familyId,
+  familyName,
   inviterId,
   onCreated,
 }: {
   buttonColor: string;
   familyId: string;
+  familyName: string;
   inviterId: string;
   onCreated: () => void;
 }) {
@@ -577,7 +658,7 @@ function CreateInviteForm({
           ]}
           onPress={() => setRole('parent')}>
           <MaterialIcons
-            name="escalator-warning"
+            name="supervisor-account"
             size={20}
             color={role === 'parent' ? '#fff' : '#687076'}
           />
@@ -592,6 +673,20 @@ function CreateInviteForm({
         <ThemedView style={styles.shareCodeBanner}>
           <ThemedText style={styles.centerText}>Share this code:</ThemedText>
           <ThemedText style={styles.codeText}>{lastCode}</ThemedText>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={`Share invite code ${lastCode}`}
+            style={({ pressed }) => [
+              styles.button,
+              styles.buttonIconRow,
+              styles.shareCodeButton,
+              { backgroundColor: buttonColor },
+              pressed && styles.buttonDisabled,
+            ]}
+            onPress={() => shareInviteCode(lastCode, role, familyName)}>
+            <MaterialIcons name="share" size={16} color="#fff" />
+            <ThemedText style={styles.buttonText}>Share code</ThemedText>
+          </Pressable>
         </ThemedView>
       ) : null}
 
@@ -620,6 +715,7 @@ function CreateInviteForm({
 const styles = StyleSheet.create({
   container: {
     padding: Spacing.xl,
+    paddingBottom: TabBarClearance,
     gap: Spacing.lg,
   },
   section: {
@@ -775,17 +871,22 @@ const styles = StyleSheet.create({
     flex: 1,
     gap: 2,
   },
-  revokeButton: {
-    // Stretch instead of shrink-wrapping: a content-sized text view gets
-    // clipped on the trailing glyph by Android/Fabric (padding doesn't help
-    // because StaticLayout excludes it from the line width). Filling the row
-    // width gives the text horizontal slack so nothing is cut off.
-    alignSelf: 'stretch',
+  inviteActions: {
+    flexDirection: 'row',
+    gap: Spacing.lg,
     marginTop: Spacing.xs,
   },
-  revokeText: {
+  inviteAction: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  revokeLinkText: {
+    color: '#d33',
+  },
+  shareCodeButton: {
     alignSelf: 'stretch',
-    textAlign: 'left',
+    marginTop: Spacing.sm,
   },
   codeText: {
     fontSize: 20,

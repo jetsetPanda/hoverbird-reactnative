@@ -1,14 +1,24 @@
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import * as Haptics from 'expo-haptics';
 import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
+import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
+import {
+  ActivityIndicator,
+  Pressable,
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  TextInput,
+  View,
+} from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { CategoryStyles, Radii, RoleColors, Spacing } from '@/constants/theme';
+import { CategoryStyles, Radii, RoleColors, Spacing, TabBarClearance } from '@/constants/theme';
 import { useAuth } from '@/contexts/auth-provider';
 import {
   activityChildNames,
@@ -20,6 +30,7 @@ import {
 } from '@/lib/activities';
 import { fetchChildren, fetchMyFamily, type Child } from '@/lib/families';
 import { getActivityMediaUrl, SIGNED_URL_STALE_MS, uploadActivityPhoto } from '@/lib/media';
+import { noClip } from '@/lib/text';
 
 function timeAgo(iso: string): string {
   const minutes = Math.floor((Date.now() - new Date(iso).getTime()) / 60000);
@@ -44,18 +55,20 @@ function childrenLabel(activity: Activity): string | null {
   return `${names[0]} +${names.length - 1}`;
 }
 
-// Android/Fabric clips the final glyph of a content-sized <Text> (e.g. inside a
-// pill that shrink-wraps its label). A trailing non-breaking space keeps its
-// advance width — unlike a regular space, which StaticLayout strips — so the
-// real last character isn't sitting on the clipped line boundary.
-function noClip(label: string): string {
-  // String.fromCharCode(160) is a non-breaking space.
-  return label + String.fromCharCode(160);
+// "Jimbo", "Jimbo & Deuxelle", or "Jimbo +2" for a set of selected children.
+function namesLabel(children: Child[], ids: string[]): string {
+  const names = ids
+    .map((id) => children.find((c) => c.id === id)?.full_name)
+    .filter((n): n is string => !!n);
+  if (names.length <= 1) return names[0] ?? '';
+  if (names.length === 2) return `${names[0]} & ${names[1]}`;
+  return `${names[0]} +${names.length - 1}`;
 }
 
 export default function HomeScreen() {
   const { profile } = useAuth();
   const insets = useSafeAreaInsets();
+  const router = useRouter();
   const accent = profile ? RoleColors[profile.role] : RoleColors.nanny;
 
   const familyQuery = useQuery({
@@ -86,9 +99,22 @@ export default function HomeScreen() {
           No family yet
         </ThemedText>
         <ThemedText style={styles.emptyText}>
-          Set up your family in the Family tab first — you&apos;ll see activity logging here once
-          there&apos;s a child to log for.
+          {profile?.role === 'parent'
+            ? 'Set up your family first — you’ll see the activity feed here once there’s a child to follow.'
+            : 'Join a family first — you’ll see activity logging here once there’s a child to log for.'}
         </ThemedText>
+        <Pressable
+          style={({ pressed }) => [
+            styles.button,
+            styles.emptyButton,
+            { backgroundColor: accent },
+            pressed && styles.pressed,
+          ]}
+          onPress={() => router.push('/family')}>
+          <ThemedText style={styles.buttonText}>
+            {profile?.role === 'parent' ? 'Set up your family' : 'Enter invite code'}
+          </ThemedText>
+        </Pressable>
       </ThemedView>
     );
   }
@@ -102,8 +128,22 @@ export default function HomeScreen() {
           No children yet
         </ThemedText>
         <ThemedText style={styles.emptyText}>
-          Add a child in the Family tab to start logging activities.
+          {profile?.role === 'parent'
+            ? 'Add a child to start logging activities.'
+            : 'No children have been added to this family yet.'}
         </ThemedText>
+        {profile?.role === 'parent' ? (
+          <Pressable
+            style={({ pressed }) => [
+              styles.button,
+              styles.emptyButton,
+              { backgroundColor: accent },
+              pressed && styles.pressed,
+            ]}
+            onPress={() => router.push('/family')}>
+            <ThemedText style={styles.buttonText}>Add a child</ThemedText>
+          </Pressable>
+        ) : null}
       </ThemedView>
     );
   }
@@ -151,13 +191,15 @@ function LogActivityScreen({
     [selectedChildrenKey]
   );
 
-  // Multi-select: tap toggles a child in/out, but at least one stays selected.
+  // Multi-select: tap toggles a child in/out. Deselecting the last child is
+  // allowed — the empty state disables all logging controls below.
   const toggleChild = (childId: string) => {
-    setSelectedChildIds((prev) => {
-      if (!prev.includes(childId)) return [...prev, childId];
-      return prev.length > 1 ? prev.filter((id) => id !== childId) : prev;
-    });
+    setSelectedChildIds((prev) =>
+      prev.includes(childId) ? prev.filter((id) => id !== childId) : [...prev, childId]
+    );
   };
+
+  const noChildSelected = selectedChildIds.length === 0;
 
   const logMutation = useMutation({
     // Upload first (if a photo is attached), then insert the activity with the
@@ -167,6 +209,7 @@ function LogActivityScreen({
       templateKey: string | null;
       category: string;
       note: string | null;
+      label: string;
     }) => {
       const mediaUrls = pendingPhoto
         ? [
@@ -177,14 +220,16 @@ function LogActivityScreen({
             }),
           ]
         : [];
-      return logActivity({ childIds: selectedChildIds, loggedBy, mediaUrls, ...params });
+      const { label: _label, ...insertParams } = params;
+      return logActivity({ childIds: selectedChildIds, loggedBy, mediaUrls, ...insertParams });
     },
     onSuccess: (_activity, params) => {
-      const label = params.note ? 'Logged note' : 'Logged';
-      setConfirmation(label);
+      const forNames = namesLabel(familyChildren, selectedChildIds);
+      setConfirmation(forNames ? `Logged ${params.label} for ${forNames}` : `Logged ${params.label}`);
       setPendingPhoto(null);
       setPhotoError(null);
-      setTimeout(() => setConfirmation(null), 2000);
+      setTimeout(() => setConfirmation(null), 2500);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
       invalidate();
     },
     onError: () => {
@@ -227,8 +272,18 @@ function LogActivityScreen({
 
   const selectedChild = familyChildren.find((c) => c.id === selectedChildIds[0]);
 
+  const [refreshing, setRefreshing] = useState(false);
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await Promise.all([recentQuery.refetch(), templatesQuery.refetch()]);
+    setRefreshing(false);
+  };
+
   return (
-    <ScrollView contentContainerStyle={[styles.container, { paddingTop: insets.top + Spacing.xl }]}>
+    <ScrollView
+      contentContainerStyle={[styles.container, { paddingTop: insets.top + Spacing.xl }]}
+      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+      keyboardShouldPersistTaps="handled">
       <ThemedText type="title">Log an activity</ThemedText>
 
       {familyChildren.length > 1 ? (
@@ -239,6 +294,9 @@ function LogActivityScreen({
               return (
                 <Pressable
                   key={child.id}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected }}
+                  accessibilityLabel={`Log for ${child.full_name}`}
                   style={({ pressed }) => [
                     styles.chip,
                     selected && { backgroundColor: accent, borderColor: accent },
@@ -257,6 +315,13 @@ function LogActivityScreen({
               <MaterialIcons name="group" size={14} color="#687076" />
               <ThemedText style={styles.multiChildCueText}>
                 {noClip(`Logging for ${selectedChildIds.length} children`)}
+              </ThemedText>
+            </ThemedView>
+          ) : noChildSelected ? (
+            <ThemedView style={styles.multiChildCue}>
+              <MaterialIcons name="touch-app" size={14} color="#687076" />
+              <ThemedText style={styles.multiChildCueText}>
+                {noClip('Select a child to log activities')}
               </ThemedText>
             </ThemedView>
           ) : null}
@@ -283,19 +348,33 @@ function LogActivityScreen({
               return (
                 <Pressable
                   key={template.key}
+                  accessibilityRole="button"
+                  accessibilityState={{ disabled: logMutation.isPending || noChildSelected }}
                   style={({ pressed }) => [styles.templateChip, pressed && styles.pressed]}
-                  disabled={logMutation.isPending}
+                  disabled={logMutation.isPending || noChildSelected}
                   onPress={() =>
                     logMutation.mutate({
                       templateKey: template.key,
                       category: template.category,
                       note: null,
+                      label: template.label,
                     })
                   }>
-                  <View style={[styles.templateIconBadge, { backgroundColor: color + '22' }]}>
-                    <MaterialIcons name={icon as never} size={20} color={color} />
+                  <View
+                    style={[
+                      styles.templateIconBadge,
+                      { backgroundColor: noChildSelected ? '#DEDEDE22' : color + '22' },
+                    ]}>
+                    <MaterialIcons
+                      name={icon as never}
+                      size={20}
+                      color={noChildSelected ? '#DEDEDE' : color}
+                    />
                   </View>
-                  <ThemedText style={styles.templateLabel}>{noClip(template.label)}</ThemedText>
+                  <ThemedText
+                    style={[styles.templateLabel, noChildSelected && styles.disabledText]}>
+                    {noClip(template.label)}
+                  </ThemedText>
                 </Pressable>
               );
             })}
@@ -304,9 +383,10 @@ function LogActivityScreen({
 
       <ThemedView style={styles.spacer}>
         <TextInput
-          style={styles.input}
+          style={[styles.input, styles.noteInput]}
           placeholder="Something else…"
           placeholderTextColor="#687076"
+          multiline
           value={noteText}
           onChangeText={setNoteText}
         />
@@ -317,8 +397,13 @@ function LogActivityScreen({
               style={styles.photoPreview}
               contentFit="cover"
             />
+            <View style={styles.photoPreviewInfo}>
+              <ThemedText style={styles.photoCueText}>Attaches to your next log</ThemedText>
+            </View>
             <Pressable
               hitSlop={8}
+              accessibilityRole="button"
+              accessibilityLabel="Remove photo"
               disabled={logMutation.isPending}
               onPress={() => {
                 setPendingPhoto(null);
@@ -331,18 +416,34 @@ function LogActivityScreen({
         ) : (
           <View style={styles.photoButtonRow}>
             <Pressable
+              accessibilityRole="button"
+              accessibilityState={{ disabled: logMutation.isPending || noChildSelected }}
               style={({ pressed }) => [styles.photoButton, pressed && styles.pressed]}
-              disabled={logMutation.isPending}
+              disabled={logMutation.isPending || noChildSelected}
               onPress={() => pickPhoto('library')}>
-              <MaterialIcons name="photo-library" size={16} color={accent} />
-              <ThemedText style={styles.photoButtonText}>{noClip('Add photo')}</ThemedText>
+              <MaterialIcons
+                name="photo-library"
+                size={16}
+                color={noChildSelected ? '#DEDEDE' : accent}
+              />
+              <ThemedText style={[styles.photoButtonText, noChildSelected && styles.disabledText]}>
+                {noClip('Add photo')}
+              </ThemedText>
             </Pressable>
             <Pressable
+              accessibilityRole="button"
+              accessibilityState={{ disabled: logMutation.isPending || noChildSelected }}
               style={({ pressed }) => [styles.photoButton, pressed && styles.pressed]}
-              disabled={logMutation.isPending}
+              disabled={logMutation.isPending || noChildSelected}
               onPress={() => pickPhoto('camera')}>
-              <MaterialIcons name="photo-camera" size={16} color={accent} />
-              <ThemedText style={styles.photoButtonText}>{noClip('Camera')}</ThemedText>
+              <MaterialIcons
+                name="photo-camera"
+                size={16}
+                color={noChildSelected ? '#DEDEDE' : accent}
+              />
+              <ThemedText style={[styles.photoButtonText, noChildSelected && styles.disabledText]}>
+                {noClip('Camera')}
+              </ThemedText>
             </Pressable>
           </View>
         )}
@@ -356,22 +457,32 @@ function LogActivityScreen({
           style={({ pressed }) => [
             styles.button,
             { backgroundColor: accent },
-            ((!noteText.trim() && !pendingPhoto) || logMutation.isPending) &&
+            ((!noteText.trim() && !pendingPhoto) || logMutation.isPending || noChildSelected) &&
               styles.buttonDisabled,
             pressed && styles.pressed,
           ]}
-          disabled={(!noteText.trim() && !pendingPhoto) || logMutation.isPending}
+          disabled={(!noteText.trim() && !pendingPhoto) || logMutation.isPending || noChildSelected}
           onPress={() => {
+            const hasNote = !!noteText.trim();
             logMutation.mutate(
-              { templateKey: 'custom', category: 'other', note: noteText.trim() || null },
+              {
+                templateKey: 'custom',
+                category: 'other',
+                note: noteText.trim() || null,
+                label: hasNote && pendingPhoto ? 'note + photo' : hasNote ? 'note' : 'photo',
+              },
               { onSuccess: () => setNoteText('') }
             );
           }}>
           {logMutation.isPending ? (
             <ActivityIndicator color="#fff" />
           ) : (
-            <ThemedText style={styles.buttonText}>
-              {noteText.trim() || !pendingPhoto ? 'Log note' : 'Log photo'}
+            <ThemedText style={[styles.buttonText, noChildSelected && styles.disabledText]}>
+              {noteText.trim() && pendingPhoto
+                ? 'Log note + photo'
+                : pendingPhoto && !noteText.trim()
+                  ? 'Log photo'
+                  : 'Log note'}
             </ThemedText>
           )}
         </Pressable>
@@ -380,7 +491,7 @@ function LogActivityScreen({
       <ThemedText type="subtitle" style={styles.spacer}>
         Recent
       </ThemedText>
-      <ActivityList activities={recentQuery.data ?? []} showChildName={false} />
+      <ActivityList activities={recentQuery.data ?? []} showChildName={familyChildren.length > 1} />
     </ScrollView>
   );
 }
@@ -415,13 +526,24 @@ function ActivityFeedScreen({
     ? (activitiesQuery.data ?? []).filter((a) => a.category === categoryFilter)
     : activitiesQuery.data ?? [];
 
+  const [refreshing, setRefreshing] = useState(false);
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await activitiesQuery.refetch();
+    setRefreshing(false);
+  };
+
   return (
-    <ScrollView contentContainerStyle={[styles.container, { paddingTop: insets.top + Spacing.xl }]}>
+    <ScrollView
+      contentContainerStyle={[styles.container, { paddingTop: insets.top + Spacing.xl }]}
+      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}>
       <ThemedText type="title">Activity feed</ThemedText>
 
       {categories.length > 0 ? (
         <ThemedView style={[styles.chipRow, styles.spacer]}>
           <Pressable
+            accessibilityRole="button"
+            accessibilityState={{ selected: !categoryFilter }}
             style={({ pressed }) => [
               styles.chip,
               !categoryFilter && { backgroundColor: accent, borderColor: accent },
@@ -438,6 +560,9 @@ function ActivityFeedScreen({
             return (
               <Pressable
                 key={category}
+                accessibilityRole="button"
+                accessibilityState={{ selected }}
+                accessibilityLabel={`Filter by ${category}`}
                 style={({ pressed }) => [
                   styles.chip,
                   styles.categoryChip,
@@ -558,6 +683,7 @@ function ActivityPhoto({ path }: { path: string }) {
 const styles = StyleSheet.create({
   container: {
     padding: Spacing.xl,
+    paddingBottom: TabBarClearance,
     gap: Spacing.md,
   },
   center: {
@@ -603,6 +729,23 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     fontSize: 16,
     marginBottom: Spacing.sm,
+  },
+  noteInput: {
+    minHeight: 48,
+    maxHeight: 96,
+    textAlignVertical: 'top',
+  },
+  emptyButton: {
+    paddingHorizontal: Spacing.xl,
+    marginTop: Spacing.sm,
+  },
+  photoPreviewInfo: {
+    flex: 1,
+    justifyContent: 'center',
+  },
+  photoCueText: {
+    fontSize: 13,
+    opacity: 0.6,
   },
   button: {
     borderRadius: Radii.sm,
@@ -675,6 +818,9 @@ const styles = StyleSheet.create({
   },
   templateLabel: {
     fontSize: 14,
+  },
+  disabledText: {
+    color: '#DEDEDE',
   },
   activityCard: {
     flexDirection: 'row',
