@@ -1,50 +1,222 @@
-# Welcome to your Expo app 👋
+# HoverBird
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+A React Native (Expo) mobile app for **nanny ↔ parent activity logging**.
+Nannies log the activities and milestones they do with the children in their
+care; parents follow along in a live feed and get a push notification on every
+new entry.
 
-## Get started
+The full product spec, data-model rationale, and decision log live in
+[`docs/architecture.md`](docs/architecture.md) — read it before implementing a
+feature, since it records intentional choices (invitation flow,
+one-child-per-activity origin, deferred features) that aren't obvious from the
+code alone. The database is the single source of truth for the data model and
+lives in [`supabase/schema.sql`](supabase/schema.sql).
 
-1. Install dependencies
+---
 
-   ```bash
-   npm install
-   ```
+## Tech stack
 
-2. Start the app
+| Layer | Choice | Version |
+|---|---|---|
+| Mobile framework | Expo (managed workflow) | SDK 54 |
+| | React Native | 0.81 |
+| | React | 19 |
+| Routing | Expo Router (file-based) | 6 |
+| Server state | TanStack Query (React Query) | 5 |
+| Backend / BaaS | Supabase — Postgres, Auth, Storage, Realtime | `@supabase/supabase-js` 2 |
+| Push notifications | Expo Notifications + a Supabase Edge Function | — |
+| Language | TypeScript | 5.9 |
+| Lint | ESLint (`eslint-config-expo` flat config) | 9 |
 
-   ```bash
-   npx expo start
-   ```
+**New Architecture** and the **React Compiler** are both enabled
+(`app.config.js`: `newArchEnabled`, `experiments.reactCompiler`), along with
+typed routes. Avoid patterns that break compiler assumptions (e.g. mutating
+values during render).
 
-In the output, you'll find options to open the app in a
+Notable native modules: `expo-notifications`, `expo-image` /
+`expo-image-picker`, `expo-haptics`. Because these ship native code, the app
+runs on a **development build**, not Expo Go (see
+[Running the app](#running-the-app)).
 
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
+---
 
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
+## Features
 
-## Get a fresh project
+- **Auth + onboarding** — email/password sign-up, then pick a role
+  (parent or nanny).
+- **Invitations** — either side generates a 6-digit code; the other enters it
+  to form the parent↔nanny↔family relationship.
+- **Family / child setup** — parents create the family and add/edit children.
+- **Activity logging (nanny)** — a grid of one-tap template buttons plus a
+  free-text note, an optional photo, and a multi-child selector (log one
+  activity for several siblings at once).
+- **Activity feed (parent)** — reverse-chronological, live-updating timeline,
+  filterable by category, with photo thumbnails.
+- **Push notifications** — a Postgres webhook on new `activities` rows invokes
+  an Edge Function that sends an Expo push to the family's parents.
 
-When you're ready, run:
+---
 
-```bash
-npm run reset-project
+## Project structure
+
+```
+app/                       Expo Router routes (file-based)
+  _layout.tsx              Root stack; auth-guarded route groups
+  (auth)/                  sign-in, sign-up (unauthenticated)
+  complete-profile.tsx     Role + name, shown after first sign-up
+  (tabs)/                  Main tab bar
+    index.tsx              Activity — nanny logs / parent feed (role-switched)
+    family.tsx             Family, children, and invitations
+    info.tsx               Account
+  modal.tsx                Modal presented from the root stack
+components/                Themed + shared UI (themed-text, themed-view, ui/)
+constants/theme.ts         Colors, Fonts, Spacing, Radii, category styles
+contexts/auth-provider.tsx Session + profile context
+hooks/                     use-color-scheme, use-theme-color
+lib/                       Data layer (Supabase queries, one file per domain)
+  supabase.ts              Supabase client
+  activities.ts  families.ts  invitations.ts  media.ts  notifications.ts
+supabase/
+  schema.sql               Data model, RLS policies, helper functions (SoT)
+  migrations/              Incremental SQL migrations
+  functions/               Edge Functions (send-activity-push)
 ```
 
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
+The `@/*` path alias maps to the repo root (see `tsconfig.json`), e.g.
+`@/components/...`, `@/lib/...`, `@/constants/theme`.
 
-## Learn more
+---
 
-To learn more about developing your project with Expo, look at the following resources:
+## Prerequisites
 
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
+- **Node.js** 20+ and npm (required by Expo SDK 54)
+- A **Supabase** project (for the backend — see [Backend setup](#backend-setup))
+- For device/emulator builds: an **[Expo / EAS account](https://expo.dev)**
+  and the EAS CLI (`npx eas-cli`)
+- Android builds also need Firebase Cloud Messaging credentials
+  (`google-services.json`) for push — see [Environment](#environment)
 
-## Join the community
+---
 
-Join our community of developers creating universal apps.
+## Environment
 
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+Two machine-local files are **gitignored** and must be present to run the app.
+They are per-machine and are not committed:
+
+- **`.env.local`** (repo root) — Supabase connection, read via
+  `EXPO_PUBLIC_*` env vars:
+
+  ```bash
+  EXPO_PUBLIC_SUPABASE_URL=https://<your-project-ref>.supabase.co
+  EXPO_PUBLIC_SUPABASE_ANON_KEY=<your-anon-key>
+  ```
+
+  The app throws on startup without these (see `lib/supabase.ts`).
+
+- **`google-services.json`** (repo root) — Firebase/FCM credentials for Android
+  push. On EAS Build it is supplied via the `GOOGLE_SERVICES_JSON` file env var;
+  locally it falls back to this file (see `app.config.js`).
+
+---
+
+## Install
+
+```bash
+npm install
+```
+
+---
+
+## Running the app
+
+This app uses native modules, so it needs a **development build** rather than
+Expo Go.
+
+Start the dev server (Metro):
+
+```bash
+npm start          # expo start
+```
+
+Open it on a target:
+
+```bash
+npm run android    # expo start --android
+npm run ios        # expo start --ios
+npm run web        # expo start --web  (most UI works; native push/camera do not)
+```
+
+If you don't yet have a development build installed on your device/emulator,
+create one with EAS (the `development` profile in `eas.json` produces a
+dev-client APK/app):
+
+```bash
+npx eas-cli build --profile development --platform android
+# or --platform ios
+```
+
+Install the resulting build, then `npm start` and connect to it. Reloading
+JavaScript is enough for most changes — **but adding or changing a native
+module (a new `expo-*` package with native code) requires a new development
+build**, not just a Metro reload.
+
+### Build profiles (`eas.json`)
+
+| Profile | Purpose |
+|---|---|
+| `development` | Dev client (internal distribution, Android APK) |
+| `preview` | Internal test build (Android APK) |
+| `production` | Store build (auto-incrementing version) |
+
+---
+
+## Backend setup
+
+Backend setup is documented in full in
+[`docs/architecture.md`](docs/architecture.md) §8. In short:
+
+1. Apply [`supabase/schema.sql`](supabase/schema.sql) in the Supabase SQL
+   Editor (tables, RLS policies, helper functions, seed data), then any files
+   in `supabase/migrations/`.
+2. Enable **Email** auth (Authentication → Providers).
+3. Run `npx eas-cli init` so `app.config.js` has an `extra.eas.projectId` —
+   client push registration in `lib/notifications.ts` no-ops without it.
+4. Deploy the push function: `npx supabase functions deploy send-activity-push`.
+5. Create a Database Webhook on `activities` INSERT that calls
+   `send-activity-push`.
+
+**Access control lives entirely in the database (RLS)**, built on the
+`SECURITY DEFINER` helpers `has_family_access(family_id)` and
+`is_family_caregiver(family_id)`: parents and nannies linked to a child's
+family can read its activities; only the assigned nanny can write, as
+themselves. `redeem_invite(code)` is `SECURITY DEFINER` because a code redeemer
+has no family access yet. Never bypass RLS with a service-role key in app code.
+
+---
+
+## Linting
+
+```bash
+npm run lint       # expo lint
+```
+
+There is no test runner configured.
+
+---
+
+## Conventions
+
+- **Theming:** colors and fonts come from `constants/theme.ts` via
+  `useThemeColor` and the themed components (`themed-text.tsx`,
+  `themed-view.tsx`).
+- **Data layer:** one file per domain under `lib/`; screens call these rather
+  than hitting Supabase inline.
+- **Workflow:** feature branch → PR → merge to `main`. Commits use conventional
+  prefixes (`feat:`, `fix:`, `chore:`). Nothing lands directly on `main`.
+- **Docs stay in sync:** when behavior, schema, or a recorded decision changes,
+  update the relevant doc (`docs/architecture.md`, schema comments) in the same
+  change.
+
+See [`CLAUDE.md`](CLAUDE.md) and [`AGENTS.md`](AGENTS.md) for the guidance given
+to AI assistants working in this repo (notably: verify against the versioned
+Expo SDK 54 docs before writing framework code).
