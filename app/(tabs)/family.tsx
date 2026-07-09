@@ -1,6 +1,7 @@
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
-import { useState } from 'react';
+import * as Linking from 'expo-linking';
+import { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Pressable,
@@ -32,6 +33,7 @@ import {
   revokeInvite,
   type Invitation,
 } from '@/lib/invitations';
+import { clearPendingInviteCode, getPendingInviteCode } from '@/lib/pending-invite';
 import { noClip } from '@/lib/text';
 
 const REDEEM_ERROR_MESSAGES: Record<string, string> = {
@@ -43,11 +45,17 @@ const REDEEM_ERROR_MESSAGES: Record<string, string> = {
 
 // Opens the system share sheet with a ready-to-send invite message. Share is
 // built into RN (no clipboard dependency — that would need a native rebuild).
+// Includes a deep link (custom scheme) that opens the app straight to the
+// prefilled redeem form, plus the raw code as a fallback.
 function shareInviteCode(code: string, role: UserRole, familyName: string) {
+  const link = Linking.createURL('/', { queryParams: { code } });
   Share.share({
-    message: `You're invited to join ${familyName} on Hoverbird as a ${
-      role === 'nanny' ? 'nanny' : 'co-parent'
-    }. Your invite code: ${code}`,
+    message:
+      `You're invited to join ${familyName} on Hoverbird as a ${
+        role === 'nanny' ? 'nanny' : 'co-parent'
+      }.\n\n` +
+      `Open the app with this link:\n${link}\n\n` +
+      `Already have the app open? Enter code ${code}.`,
   }).catch(() => {});
 }
 
@@ -354,11 +362,21 @@ function RedeemInviteForm({
   const [code, setCode] = useState('');
   const [error, setError] = useState<string | null>(null);
 
+  // Prefill from a code captured off a deep link (see lib/pending-invite.ts).
+  // Non-destructive read — cleared only after a successful join below — so the
+  // code isn't lost if the user backgrounds the app before submitting.
+  useEffect(() => {
+    getPendingInviteCode().then((pending) => {
+      if (pending) setCode(pending);
+    });
+  }, []);
+
   const mutation = useMutation({
     mutationFn: () => redeemInvite(code.trim()),
     onSuccess: (result) => {
       if (result.ok) {
         setError(null);
+        clearPendingInviteCode();
         onJoined();
       } else {
         setError(REDEEM_ERROR_MESSAGES[result.error] ?? result.error);
