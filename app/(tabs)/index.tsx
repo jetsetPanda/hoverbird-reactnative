@@ -191,13 +191,15 @@ function LogActivityScreen({
     [selectedChildrenKey]
   );
 
-  // Multi-select: tap toggles a child in/out, but at least one stays selected.
+  // Multi-select: tap toggles a child in/out. Deselecting the last child is
+  // allowed — the empty state disables all logging controls below.
   const toggleChild = (childId: string) => {
-    setSelectedChildIds((prev) => {
-      if (!prev.includes(childId)) return [...prev, childId];
-      return prev.length > 1 ? prev.filter((id) => id !== childId) : prev;
-    });
+    setSelectedChildIds((prev) =>
+      prev.includes(childId) ? prev.filter((id) => id !== childId) : [...prev, childId]
+    );
   };
+
+  const noChildSelected = selectedChildIds.length === 0;
 
   const logMutation = useMutation({
     // Upload first (if a photo is attached), then insert the activity with the
@@ -315,6 +317,13 @@ function LogActivityScreen({
                 {noClip(`Logging for ${selectedChildIds.length} children`)}
               </ThemedText>
             </ThemedView>
+          ) : noChildSelected ? (
+            <ThemedView style={styles.multiChildCue}>
+              <MaterialIcons name="touch-app" size={14} color="#687076" />
+              <ThemedText style={styles.multiChildCueText}>
+                {noClip('Select a child to log activities')}
+              </ThemedText>
+            </ThemedView>
           ) : null}
         </>
       ) : (
@@ -339,8 +348,10 @@ function LogActivityScreen({
               return (
                 <Pressable
                   key={template.key}
+                  accessibilityRole="button"
+                  accessibilityState={{ disabled: logMutation.isPending || noChildSelected }}
                   style={({ pressed }) => [styles.templateChip, pressed && styles.pressed]}
-                  disabled={logMutation.isPending}
+                  disabled={logMutation.isPending || noChildSelected}
                   onPress={() =>
                     logMutation.mutate({
                       templateKey: template.key,
@@ -349,10 +360,21 @@ function LogActivityScreen({
                       label: template.label,
                     })
                   }>
-                  <View style={[styles.templateIconBadge, { backgroundColor: color + '22' }]}>
-                    <MaterialIcons name={icon as never} size={20} color={color} />
+                  <View
+                    style={[
+                      styles.templateIconBadge,
+                      { backgroundColor: noChildSelected ? '#DEDEDE22' : color + '22' },
+                    ]}>
+                    <MaterialIcons
+                      name={icon as never}
+                      size={20}
+                      color={noChildSelected ? '#DEDEDE' : color}
+                    />
                   </View>
-                  <ThemedText style={styles.templateLabel}>{noClip(template.label)}</ThemedText>
+                  <ThemedText
+                    style={[styles.templateLabel, noChildSelected && styles.disabledText]}>
+                    {noClip(template.label)}
+                  </ThemedText>
                 </Pressable>
               );
             })}
@@ -394,18 +416,34 @@ function LogActivityScreen({
         ) : (
           <View style={styles.photoButtonRow}>
             <Pressable
+              accessibilityRole="button"
+              accessibilityState={{ disabled: logMutation.isPending || noChildSelected }}
               style={({ pressed }) => [styles.photoButton, pressed && styles.pressed]}
-              disabled={logMutation.isPending}
+              disabled={logMutation.isPending || noChildSelected}
               onPress={() => pickPhoto('library')}>
-              <MaterialIcons name="photo-library" size={16} color={accent} />
-              <ThemedText style={styles.photoButtonText}>{noClip('Add photo')}</ThemedText>
+              <MaterialIcons
+                name="photo-library"
+                size={16}
+                color={noChildSelected ? '#DEDEDE' : accent}
+              />
+              <ThemedText style={[styles.photoButtonText, noChildSelected && styles.disabledText]}>
+                {noClip('Add photo')}
+              </ThemedText>
             </Pressable>
             <Pressable
+              accessibilityRole="button"
+              accessibilityState={{ disabled: logMutation.isPending || noChildSelected }}
               style={({ pressed }) => [styles.photoButton, pressed && styles.pressed]}
-              disabled={logMutation.isPending}
+              disabled={logMutation.isPending || noChildSelected}
               onPress={() => pickPhoto('camera')}>
-              <MaterialIcons name="photo-camera" size={16} color={accent} />
-              <ThemedText style={styles.photoButtonText}>{noClip('Camera')}</ThemedText>
+              <MaterialIcons
+                name="photo-camera"
+                size={16}
+                color={noChildSelected ? '#DEDEDE' : accent}
+              />
+              <ThemedText style={[styles.photoButtonText, noChildSelected && styles.disabledText]}>
+                {noClip('Camera')}
+              </ThemedText>
             </Pressable>
           </View>
         )}
@@ -419,11 +457,11 @@ function LogActivityScreen({
           style={({ pressed }) => [
             styles.button,
             { backgroundColor: accent },
-            ((!noteText.trim() && !pendingPhoto) || logMutation.isPending) &&
+            ((!noteText.trim() && !pendingPhoto) || logMutation.isPending || noChildSelected) &&
               styles.buttonDisabled,
             pressed && styles.pressed,
           ]}
-          disabled={(!noteText.trim() && !pendingPhoto) || logMutation.isPending}
+          disabled={(!noteText.trim() && !pendingPhoto) || logMutation.isPending || noChildSelected}
           onPress={() => {
             const hasNote = !!noteText.trim();
             logMutation.mutate(
@@ -439,7 +477,7 @@ function LogActivityScreen({
           {logMutation.isPending ? (
             <ActivityIndicator color="#fff" />
           ) : (
-            <ThemedText style={styles.buttonText}>
+            <ThemedText style={[styles.buttonText, noChildSelected && styles.disabledText]}>
               {noteText.trim() && pendingPhoto
                 ? 'Log note + photo'
                 : pendingPhoto && !noteText.trim()
@@ -780,6 +818,9 @@ const styles = StyleSheet.create({
   },
   templateLabel: {
     fontSize: 14,
+  },
+  disabledText: {
+    color: '#DEDEDE',
   },
   activityCard: {
     flexDirection: 'row',
