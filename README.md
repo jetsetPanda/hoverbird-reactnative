@@ -164,9 +164,13 @@ build**, not just a Metro reload.
 
 | Profile | Purpose |
 |---|---|
-| `development` | Dev client (internal distribution, Android APK) |
+| `development` | Dev client, internal distribution (Android APK; iOS device build — needs an Apple Developer account + a registered device via `eas device:create`) |
+| `ios-simulator` | Dev client for the iOS Simulator (extends `development`, `ios.simulator`); no Apple account needed, but push (APNs) and camera don't work on the simulator. Requires a Mac with Xcode to run the result. |
 | `preview` | Internal test build (Android APK) |
 | `production` | Store build (auto-incrementing version) |
+
+EAS builds run in the cloud, so iOS builds can be triggered from any OS — a Mac
+is only needed to *run* an `ios-simulator` build (or for local Xcode work).
 
 ---
 

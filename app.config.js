@@ -13,6 +13,9 @@ module.exports = {
     newArchEnabled: true,
     ios: {
       supportsTablet: true,
+      // Required for any iOS build (EAS otherwise prompts on first build).
+      // Mirrors the Android package id.
+      bundleIdentifier: 'com.jetsetdev.hoverbirdreactnative',
     },
     android: {
       adaptiveIcon: {
