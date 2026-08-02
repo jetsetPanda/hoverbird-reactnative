@@ -5,7 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { Radii, RoleColors, Spacing } from '@/constants/theme';
+import { Radii, RoleColors, Spacing, webContentContainer } from '@/constants/theme';
 import { useAuth, type UserRole } from '@/contexts/auth-provider';
 
 export default function CompleteProfileScreen() {
@@ -119,6 +119,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     padding: Spacing.xl,
     gap: Spacing.md,
+    ...webContentContainer,
   },
   title: {
     marginBottom: Spacing.xs,

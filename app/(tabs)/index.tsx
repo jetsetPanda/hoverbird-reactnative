@@ -18,7 +18,14 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { CategoryStyles, Radii, RoleColors, Spacing, TabBarClearance } from '@/constants/theme';
+import {
+  CategoryStyles,
+  Radii,
+  RoleColors,
+  Spacing,
+  TabBarClearance,
+  webContentContainer,
+} from '@/constants/theme';
 import { useAuth } from '@/contexts/auth-provider';
 import {
   activityChildNames,
@@ -685,6 +692,7 @@ const styles = StyleSheet.create({
     padding: Spacing.xl,
     paddingBottom: TabBarClearance,
     gap: Spacing.md,
+    ...webContentContainer,
   },
   center: {
     flex: 1,
@@ -692,6 +700,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: Spacing.xl,
     gap: Spacing.md,
+    ...webContentContainer,
   },
   emptyIcon: {
     marginBottom: Spacing.xs,

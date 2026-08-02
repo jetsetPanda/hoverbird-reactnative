@@ -3,7 +3,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
-import { ActivityIndicator, StyleSheet } from 'react-native';
+import { ActivityIndicator, Platform, StyleSheet } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import 'react-native-reanimated';
 
@@ -18,13 +18,23 @@ export const unstable_settings = {
 
 const queryClient = new QueryClient();
 
+// On web the screens are capped to a centered max-width column; React Navigation
+// paints each scene with theme.colors.background, and DefaultTheme's is gray
+// (rgb(242,242,242)) — which would show as bands beside the white screens on a
+// wide browser. Match the page to the app's white background on web only, so
+// native keeps its default scene background (byte-identical to before).
+const LightNavTheme =
+  Platform.OS === 'web'
+    ? { ...DefaultTheme, colors: { ...DefaultTheme.colors, background: '#fff', card: '#fff' } }
+    : DefaultTheme;
+
 export default function RootLayout() {
   const colorScheme = useColorScheme();
 
   return (
     <SafeAreaProvider>
       <QueryClientProvider client={queryClient}>
-        <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
+        <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : LightNavTheme}>
           <AuthProvider>
             <RootNavigator />
           </AuthProvider>

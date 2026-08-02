@@ -4,7 +4,7 @@ import { Platform, StyleSheet } from 'react-native';
 
 import { GlassTabButton } from '@/components/glass-tab-button';
 import { IconSymbol } from '@/components/ui/icon-symbol';
-import { Colors } from '@/constants/theme';
+import { Colors, ContentMaxWidth } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 
 export default function TabLayout() {
@@ -21,7 +21,7 @@ export default function TabLayout() {
         // True backdrop blur needs expo-blur (a native module — dev-client
         // rebuild); until then the frosted fill + light edge + soft shadow
         // carry the effect, which is also the cheaper path on Android.
-        tabBarStyle: styles.tabBar,
+        tabBarStyle: [styles.tabBar, Platform.OS === 'web' && styles.tabBarWeb],
         tabBarItemStyle: styles.tabItem,
         tabBarActiveBackgroundColor: 'rgba(255, 255, 255, 0.9)',
         tabBarLabelStyle: styles.tabLabel,
@@ -72,6 +72,19 @@ const styles = StyleSheet.create({
     shadowRadius: 12,
     elevation: 8,
     paddingBottom: 0,
+  },
+  // Web only: an absolutely-positioned element can't be centered with
+  // alignSelf, so pin both edges and use auto side margins to center a pill
+  // capped at the content width (instead of stretching across the desktop
+  // viewport). left/right:16 keeps a 16px edge gap on mobile-web viewports
+  // narrower than the cap (where the auto margins would otherwise collapse to
+  // 0); above the cap the auto margins center the pill. Overrides the native
+  // marginHorizontal:16 on web only.
+  tabBarWeb: {
+    left: 16,
+    right: 16,
+    marginHorizontal: 'auto',
+    maxWidth: ContentMaxWidth,
   },
   tabItem: {
     marginVertical: 8,

@@ -6,7 +6,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { Radii, Spacing } from '@/constants/theme';
+import { Radii, Spacing, webContentContainer } from '@/constants/theme';
 import { useAuth } from '@/contexts/auth-provider';
 
 export default function SignUpScreen() {
@@ -139,6 +139,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     padding: Spacing.xl,
     gap: Spacing.md,
+    ...webContentContainer,
   },
   logoBadge: {
     width: 64,

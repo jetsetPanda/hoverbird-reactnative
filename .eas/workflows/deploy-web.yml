@@ -1,0 +1,16 @@
+# Auto-deploy the web build to EAS Hosting on every push to main.
+# Requires the repo to be connected to EAS (GitHub app) for it to fire; until
+# then, deploy manually with:  npx expo export -p web && npx eas-cli deploy --prod
+# Docs: https://docs.expo.dev/eas/workflows/syntax/#deploy
+name: Deploy web
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy_web:
+    type: deploy
+    params:
+      prod: true
