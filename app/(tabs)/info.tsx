@@ -4,7 +4,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { Radii, RoleColors, Spacing, TabBarClearance } from '@/constants/theme';
+import { Radii, RoleColors, Spacing, TabBarClearance, webContentContainer } from '@/constants/theme';
 import { useAuth } from '@/contexts/auth-provider';
 
 export default function AccountScreen() {
@@ -67,6 +67,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     padding: Spacing.xl,
     gap: Spacing.md,
+    ...webContentContainer,
   },
   avatar: {
     width: 88,

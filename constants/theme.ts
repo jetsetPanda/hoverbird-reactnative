@@ -55,6 +55,27 @@ export const Radii = { sm: 8, md: 12, lg: 16, pill: 999 };
 // the floating glass tab bar (68 tall + ~24 bottom offset + breathing room).
 export const TabBarClearance = 104;
 
+// Max content width for the web layout. On phones the screen is narrower than
+// this so it has no effect; on a desktop browser (react-native-web) it keeps
+// screens from stretching into an unreadable full-width column. Applied web-only
+// via `webContentContainer` below.
+export const ContentMaxWidth = 640;
+
+// Spread onto a screen's outer container (a ScrollView contentContainerStyle or
+// a centered flex:1 View) to cap and center it on web. `marginHorizontal:'auto'`
+// centers a capped block; `alignSelf:'center'` also centers it as a flex item
+// (needed for the flex:1 auth/account roots whose parent stretches children).
+// Null on native, so native layout is untouched (spreading null is a no-op).
+export const webContentContainer =
+  Platform.OS === 'web'
+    ? ({
+        width: '100%',
+        maxWidth: ContentMaxWidth,
+        alignSelf: 'center',
+        marginHorizontal: 'auto',
+      } as const)
+    : null;
+
 export const Fonts = Platform.select({
   ios: {
     /** iOS `UIFontDescriptorSystemDesignDefault` */

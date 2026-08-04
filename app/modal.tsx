@@ -4,6 +4,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
+import { webContentContainer } from '@/constants/theme';
 
 export default function ModalScreen() {
   const insets = useSafeAreaInsets();
@@ -23,6 +24,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     padding: 20,
+    ...webContentContainer,
   },
   link: {
     marginTop: 15,

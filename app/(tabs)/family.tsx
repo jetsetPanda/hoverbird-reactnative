@@ -16,7 +16,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { Radii, RoleColors, Spacing, TabBarClearance } from '@/constants/theme';
+import { Radii, RoleColors, Spacing, TabBarClearance, webContentContainer } from '@/constants/theme';
 import { useAuth, type UserRole } from '@/contexts/auth-provider';
 import {
   addChild,
@@ -735,6 +735,7 @@ const styles = StyleSheet.create({
     padding: Spacing.xl,
     paddingBottom: TabBarClearance,
     gap: Spacing.lg,
+    ...webContentContainer,
   },
   section: {
     gap: Spacing.md,
@@ -745,6 +746,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: Spacing.xl,
     gap: Spacing.md,
+    ...webContentContainer,
   },
   logoBadge: {
     width: 64,
