@@ -51,3 +51,4 @@ install.cmd
 
 # JetBrains IDE
 .idea/
+.claude/worktrees/

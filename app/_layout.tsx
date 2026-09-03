@@ -9,6 +9,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import 'react-native-reanimated';
 
 import { ThemedView } from '@/components/themed-view';
+import { Colors } from '@/constants/theme';
 import { AuthProvider, useAuth } from '@/contexts/auth-provider';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { registerForPushNotifications } from '@/lib/notifications';
@@ -21,14 +22,24 @@ export const unstable_settings = {
 const queryClient = new QueryClient();
 
 // On web the screens are capped to a centered max-width column; React Navigation
-// paints each scene with theme.colors.background, and DefaultTheme's is gray
-// (rgb(242,242,242)) — which would show as bands beside the white screens on a
-// wide browser. Match the page to the app's white background on web only, so
-// native keeps its default scene background (byte-identical to before).
+// paints each scene with theme.colors.background, and its defaults (light gray /
+// near-black) don't match the app's own backgrounds — the mismatch would show as
+// bands beside the capped column on a wide browser. Match the page to the app's
+// background on web only, per scheme, so native keeps its default scene bg.
 const LightNavTheme =
   Platform.OS === 'web'
-    ? { ...DefaultTheme, colors: { ...DefaultTheme.colors, background: '#fff', card: '#fff' } }
+    ? {
+        ...DefaultTheme,
+        colors: { ...DefaultTheme.colors, background: Colors.light.background, card: Colors.light.background },
+      }
     : DefaultTheme;
+const DarkNavTheme =
+  Platform.OS === 'web'
+    ? {
+        ...DarkTheme,
+        colors: { ...DarkTheme.colors, background: Colors.dark.background, card: Colors.dark.background },
+      }
+    : DarkTheme;
 
 export default function RootLayout() {
   const colorScheme = useColorScheme();
@@ -36,7 +47,7 @@ export default function RootLayout() {
   return (
     <SafeAreaProvider>
       <QueryClientProvider client={queryClient}>
-        <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : LightNavTheme}>
+        <ThemeProvider value={colorScheme === 'dark' ? DarkNavTheme : LightNavTheme}>
           <AuthProvider>
             <RootNavigator />
           </AuthProvider>

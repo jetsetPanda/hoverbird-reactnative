@@ -1,7 +1,7 @@
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
 import * as Linking from 'expo-linking';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Pressable,
@@ -16,8 +16,16 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { Radii, RoleColors, Spacing, TabBarClearance, webContentContainer } from '@/constants/theme';
+import {
+  Radii,
+  RoleColors,
+  Spacing,
+  TabBarClearance,
+  webContentContainer,
+  type ThemeColors,
+} from '@/constants/theme';
 import { useAuth, type UserRole } from '@/contexts/auth-provider';
+import { useThemeColors } from '@/hooks/use-theme-color';
 import {
   addChild,
   createFamily,
@@ -73,6 +81,8 @@ export default function FamilyScreen() {
   const insets = useSafeAreaInsets();
   const queryClient = useQueryClient();
   const buttonColor = profile ? RoleColors[profile.role] : RoleColors.nanny;
+  const c = useThemeColors();
+  const styles = useMemo(() => makeStyles(c), [c]);
 
   const familyQuery = useQuery({
     queryKey: ['my-family', profile?.id],
@@ -199,6 +209,8 @@ function ChildRow({
   canEdit: boolean;
   onUpdated: () => void;
 }) {
+  const c = useThemeColors();
+  const styles = useMemo(() => makeStyles(c), [c]);
   const [isEditing, setIsEditing] = useState(false);
   const [fullName, setFullName] = useState(child.full_name);
   const [birthdate, setBirthdate] = useState(child.birthdate ?? '');
@@ -220,14 +232,14 @@ function ChildRow({
         <TextInput
           style={styles.input}
           placeholder="Child's name"
-          placeholderTextColor="#687076"
+          placeholderTextColor={c.textMuted}
           value={fullName}
           onChangeText={setFullName}
         />
         <TextInput
           style={styles.input}
           placeholder="Birthdate YYYY-MM-DD (optional)"
-          placeholderTextColor="#687076"
+          placeholderTextColor={c.textMuted}
           value={birthdate}
           onChangeText={setBirthdate}
         />
@@ -303,6 +315,8 @@ function CreateFamilyForm({
   buttonColor: string;
   onCreated: () => void;
 }) {
+  const c = useThemeColors();
+  const styles = useMemo(() => makeStyles(c), [c]);
   const [name, setName] = useState('');
   const [error, setError] = useState<string | null>(null);
 
@@ -324,7 +338,7 @@ function CreateFamilyForm({
       <TextInput
         style={styles.input}
         placeholder="Family name"
-        placeholderTextColor="#687076"
+        placeholderTextColor={c.textMuted}
         value={name}
         onChangeText={setName}
       />
@@ -359,6 +373,8 @@ function RedeemInviteForm({
   buttonColor: string;
   onJoined: () => void;
 }) {
+  const c = useThemeColors();
+  const styles = useMemo(() => makeStyles(c), [c]);
   const [code, setCode] = useState('');
   const [error, setError] = useState<string | null>(null);
 
@@ -391,7 +407,7 @@ function RedeemInviteForm({
       <TextInput
         style={styles.input}
         placeholder="6-digit code"
-        placeholderTextColor="#687076"
+        placeholderTextColor={c.textMuted}
         keyboardType="number-pad"
         maxLength={6}
         value={code}
@@ -430,6 +446,8 @@ function AddChildForm({
   familyId: string;
   onAdded: () => void;
 }) {
+  const c = useThemeColors();
+  const styles = useMemo(() => makeStyles(c), [c]);
   const [isOpen, setIsOpen] = useState(false);
   const [fullName, setFullName] = useState('');
   const [birthdate, setBirthdate] = useState('');
@@ -468,14 +486,14 @@ function AddChildForm({
       <TextInput
         style={styles.input}
         placeholder="Child's name"
-        placeholderTextColor="#687076"
+        placeholderTextColor={c.textMuted}
         value={fullName}
         onChangeText={setFullName}
       />
       <TextInput
         style={styles.input}
         placeholder="Birthdate YYYY-MM-DD (optional)"
-        placeholderTextColor="#687076"
+        placeholderTextColor={c.textMuted}
         value={birthdate}
         onChangeText={setBirthdate}
       />
@@ -528,6 +546,8 @@ function InvitesSection({
   familyName: string;
   inviterId: string;
 }) {
+  const c = useThemeColors();
+  const styles = useMemo(() => makeStyles(c), [c]);
   const queryClient = useQueryClient();
 
   const invitesQuery = useQuery({
@@ -571,6 +591,8 @@ function InviteRow({
   familyName: string;
   onRevoked: () => void;
 }) {
+  const c = useThemeColors();
+  const styles = useMemo(() => makeStyles(c), [c]);
   const mutation = useMutation({
     mutationFn: () => revokeInvite(invite.id),
     onSuccess: onRevoked,
@@ -582,7 +604,7 @@ function InviteRow({
         <MaterialIcons
           name={invite.invited_role === 'nanny' ? 'volunteer-activism' : 'supervisor-account'}
           size={20}
-          color="#687076"
+          color={c.icon}
         />
       </View>
       <ThemedView style={styles.inviteInfo}>
@@ -600,7 +622,7 @@ function InviteRow({
             accessibilityLabel={`Share invite code ${invite.code}`}
             style={({ pressed }) => [styles.inviteAction, pressed && styles.pressed]}
             onPress={() => shareInviteCode(invite.code, invite.invited_role, familyName)}>
-            <MaterialIcons name="share" size={16} color="#0a7ea4" />
+            <MaterialIcons name="share" size={16} color={c.tint} />
             <ThemedText type="link">{noClip('Share')}</ThemedText>
           </Pressable>
           <Pressable
@@ -610,7 +632,7 @@ function InviteRow({
             disabled={mutation.isPending}
             style={({ pressed }) => [styles.inviteAction, pressed && styles.pressed]}
             onPress={() => mutation.mutate()}>
-            <MaterialIcons name="delete-outline" size={16} color="#d33" />
+            <MaterialIcons name="delete-outline" size={16} color={c.error} />
             <ThemedText type="link" style={styles.revokeLinkText}>
               {noClip('Revoke')}
             </ThemedText>
@@ -634,6 +656,8 @@ function CreateInviteForm({
   inviterId: string;
   onCreated: () => void;
 }) {
+  const c = useThemeColors();
+  const styles = useMemo(() => makeStyles(c), [c]);
   const [role, setRole] = useState<UserRole>('nanny');
   const [error, setError] = useState<string | null>(null);
   const [lastCode, setLastCode] = useState<string | null>(null);
@@ -660,7 +684,7 @@ function CreateInviteForm({
           <MaterialIcons
             name="volunteer-activism"
             size={20}
-            color={role === 'nanny' ? '#fff' : '#687076'}
+            color={role === 'nanny' ? '#fff' : c.icon}
           />
           <ThemedText style={[styles.roleText, role === 'nanny' && styles.roleTextSelected]}>
             Nanny
@@ -678,7 +702,7 @@ function CreateInviteForm({
           <MaterialIcons
             name="supervisor-account"
             size={20}
-            color={role === 'parent' ? '#fff' : '#687076'}
+            color={role === 'parent' ? '#fff' : c.icon}
           />
           <ThemedText style={[styles.roleText, role === 'parent' && styles.roleTextSelected]}>
             Co-parent
@@ -730,7 +754,8 @@ function CreateInviteForm({
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (c: ThemeColors) =>
+  StyleSheet.create({
   container: {
     padding: Spacing.xl,
     paddingBottom: TabBarClearance,
@@ -752,7 +777,7 @@ const styles = StyleSheet.create({
     width: 64,
     height: 64,
     borderRadius: Radii.lg,
-    backgroundColor: 'rgba(10, 126, 164, 0.12)',
+    backgroundColor: c.tintSurface,
     alignItems: 'center',
     justifyContent: 'center',
     alignSelf: 'center',
@@ -773,15 +798,16 @@ const styles = StyleSheet.create({
   },
   input: {
     borderWidth: 1,
-    borderColor: '#687076',
+    borderColor: c.inputBorder,
     borderRadius: Radii.sm,
     paddingHorizontal: 14,
     paddingVertical: 12,
     fontSize: 16,
     marginBottom: Spacing.sm,
+    color: c.text,
   },
   error: {
-    color: '#d33',
+    color: c.error,
     marginBottom: Spacing.sm,
   },
   button: {
@@ -808,7 +834,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.lg,
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: '#687076',
+    borderColor: c.inputBorder,
   },
   secondaryButtonText: {
     fontWeight: '600',
@@ -821,7 +847,7 @@ const styles = StyleSheet.create({
   },
   editCard: {
     borderWidth: 1,
-    borderColor: 'rgba(104, 112, 118, 0.25)',
+    borderColor: c.hairline,
     borderRadius: Radii.md,
     padding: Spacing.md,
     marginBottom: Spacing.sm,
@@ -851,7 +877,7 @@ const styles = StyleSheet.create({
     gap: Spacing.md,
     paddingVertical: Spacing.md,
     borderBottomWidth: 1,
-    borderBottomColor: '#e0e0e0',
+    borderBottomColor: c.border,
   },
   avatar: {
     width: 40,
@@ -877,13 +903,13 @@ const styles = StyleSheet.create({
     gap: Spacing.md,
     paddingVertical: Spacing.md,
     borderBottomWidth: 1,
-    borderBottomColor: '#e0e0e0',
+    borderBottomColor: c.border,
   },
   inviteIconBadge: {
     width: 36,
     height: 36,
     borderRadius: Radii.pill,
-    backgroundColor: 'rgba(104, 112, 118, 0.12)',
+    backgroundColor: c.badgeBg,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -902,7 +928,7 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   revokeLinkText: {
-    color: '#d33',
+    color: c.error,
   },
   shareCodeButton: {
     alignSelf: 'stretch',
@@ -914,7 +940,7 @@ const styles = StyleSheet.create({
     letterSpacing: 2,
   },
   shareCodeBanner: {
-    backgroundColor: 'rgba(10, 126, 164, 0.08)',
+    backgroundColor: c.tintSurfaceStrong,
     borderRadius: Radii.sm,
     paddingVertical: Spacing.sm,
     paddingHorizontal: Spacing.md,
@@ -927,7 +953,7 @@ const styles = StyleSheet.create({
   roleOption: {
     flex: 1,
     borderWidth: 1,
-    borderColor: '#687076',
+    borderColor: c.inputBorder,
     borderRadius: Radii.sm,
     paddingVertical: 14,
     alignItems: 'center',
