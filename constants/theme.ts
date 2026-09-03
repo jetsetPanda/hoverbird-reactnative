@@ -53,7 +53,7 @@ export const Colors = {
     border: 'rgba(255, 255, 255, 0.14)',
     inputBorder: 'rgba(255, 255, 255, 0.22)',
     icon: '#9BA1A6',
-    iconFaint: '#6B7276',
+    iconFaint: '#7C8286',
     tint: tintColorDark,
     tabIconDefault: '#9BA1A6',
     tabIconSelected: tintColorDark,
@@ -69,7 +69,7 @@ export const Colors = {
     hairline: 'rgba(255, 255, 255, 0.16)',
     glassBg: 'rgba(30, 33, 35, 0.72)',
     glassBorder: 'rgba(255, 255, 255, 0.14)',
-    glassActive: 'rgba(255, 255, 255, 0.12)',
+    glassActive: 'rgba(255, 255, 255, 0.18)',
   },
 };
 
