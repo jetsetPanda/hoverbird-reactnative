@@ -1,15 +1,26 @@
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
+import { useMemo } from 'react';
 import { Alert, Platform, Pressable, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { Radii, RoleColors, Spacing, TabBarClearance, webContentContainer } from '@/constants/theme';
+import {
+  Radii,
+  RoleColors,
+  Spacing,
+  TabBarClearance,
+  webContentContainer,
+  type ThemeColors,
+} from '@/constants/theme';
 import { useAuth } from '@/contexts/auth-provider';
+import { useThemeColors } from '@/hooks/use-theme-color';
 
 export default function AccountScreen() {
   const { session, profile, signOut } = useAuth();
   const insets = useSafeAreaInsets();
+  const c = useThemeColors();
+  const styles = useMemo(() => makeStyles(c), [c]);
   const accent = profile ? RoleColors[profile.role] : RoleColors.nanny;
 
   const confirmSignOut = () => {
@@ -53,22 +64,23 @@ export default function AccountScreen() {
         accessibilityLabel="Sign out"
         style={({ pressed }) => [styles.signOutButton, pressed && styles.pressed]}
         onPress={confirmSignOut}>
-        <MaterialIcons name="logout" size={18} color="#d33" />
+        <MaterialIcons name="logout" size={18} color={c.error} />
         <ThemedText style={styles.signOutText}>Sign out</ThemedText>
       </Pressable>
     </ThemedView>
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: Spacing.xl,
-    gap: Spacing.md,
-    ...webContentContainer,
-  },
+const makeStyles = (c: ThemeColors) =>
+  StyleSheet.create({
+    container: {
+      flex: 1,
+      alignItems: 'center',
+      justifyContent: 'center',
+      padding: Spacing.xl,
+      gap: Spacing.md,
+      ...webContentContainer,
+    },
   avatar: {
     width: 88,
     height: 88,
@@ -106,10 +118,10 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.md,
     borderRadius: Radii.sm,
     borderWidth: 1,
-    borderColor: '#d33',
+    borderColor: c.error,
   },
   signOutText: {
-    color: '#d33',
+    color: c.error,
     fontWeight: '600',
   },
   pressed: {

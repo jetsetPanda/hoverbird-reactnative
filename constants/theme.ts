@@ -6,26 +6,74 @@
 import { Platform } from 'react-native';
 
 const tintColorLight = '#0a7ea4';
-const tintColorDark = '#fff';
+const tintColorDark = '#4db8d8'; // lighter teal so links/active tint read on dark
 
+// Semantic color tokens with light + dark values. Read them at render time via
+// `useThemeColors()` (hooks/use-theme-color.ts) so screens adapt to the active
+// scheme — StyleSheet.create can't, so per-screen styles take colors from here.
+// Accent BUTTON colors (RoleColors), category colors, and text-on-accent white
+// are deliberately NOT here: they read fine on both grounds and stay static.
 export const Colors = {
   light: {
     text: '#11181C',
+    textMuted: '#687076', // secondary text, placeholders
+    textDisabled: '#DEDEDE', // disabled controls (e.g. no child selected)
     background: '#fff',
-    tint: tintColorLight,
+    surface: '#fff', // cards / elevated panels
+    surfaceMuted: 'rgba(104, 112, 118, 0.06)', // subtle card fill (activity rows)
+    border: '#e0e0e0', // list-row separators
+    inputBorder: '#687076', // text input / outline-button borders
     icon: '#687076',
+    iconFaint: '#9AA1A6', // empty-state icons
+    tint: tintColorLight,
     tabIconDefault: '#687076',
     tabIconSelected: tintColorLight,
+    onAccent: '#fff', // text/icon on a colored accent button
+    error: '#d33',
+    errorText: '#c23b3b',
+    errorSurface: 'rgba(194, 59, 59, 0.10)',
+    success: '#2a9d3f',
+    successSurface: 'rgba(42, 157, 63, 0.12)',
+    badgeBg: 'rgba(104, 112, 118, 0.12)', // icon badge backgrounds
+    tintSurface: 'rgba(10, 126, 164, 0.12)', // logo/hero badge fill
+    tintSurfaceStrong: 'rgba(10, 126, 164, 0.08)', // share-code banner
+    hairline: 'rgba(104, 112, 118, 0.25)', // faint borders (template chip, edit card)
+    // Floating glass tab bar
+    glassBg: 'rgba(255, 255, 255, 0.72)',
+    glassBorder: 'rgba(255, 255, 255, 0.3)',
+    glassActive: 'rgba(255, 255, 255, 0.9)',
   },
   dark: {
     text: '#ECEDEE',
+    textMuted: '#9BA1A6',
+    textDisabled: '#54595C',
     background: '#151718',
-    tint: tintColorDark,
+    surface: '#1E2123',
+    surfaceMuted: 'rgba(255, 255, 255, 0.06)',
+    border: 'rgba(255, 255, 255, 0.14)',
+    inputBorder: 'rgba(255, 255, 255, 0.22)',
     icon: '#9BA1A6',
+    iconFaint: '#6B7276',
+    tint: tintColorDark,
     tabIconDefault: '#9BA1A6',
     tabIconSelected: tintColorDark,
+    onAccent: '#fff',
+    error: '#ff6b6b',
+    errorText: '#ff8080',
+    errorSurface: 'rgba(255, 107, 107, 0.15)',
+    success: '#4ade80',
+    successSurface: 'rgba(74, 222, 128, 0.15)',
+    badgeBg: 'rgba(255, 255, 255, 0.10)',
+    tintSurface: 'rgba(77, 184, 216, 0.16)',
+    tintSurfaceStrong: 'rgba(77, 184, 216, 0.12)',
+    hairline: 'rgba(255, 255, 255, 0.16)',
+    glassBg: 'rgba(30, 33, 35, 0.72)',
+    glassBorder: 'rgba(255, 255, 255, 0.14)',
+    glassActive: 'rgba(255, 255, 255, 0.12)',
   },
 };
+
+export type ThemeColors = typeof Colors.light;
 
 // Per-role accent for primary action buttons, distinct from the tab/icon tint
 // above so parents and nannies can tell their own screens apart at a glance.
