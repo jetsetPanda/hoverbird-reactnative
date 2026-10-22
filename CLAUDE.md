@@ -13,12 +13,13 @@ Full product spec, data model rationale, and decision log live in
 captures decisions (invitation flow, one-child-per-activity, deferred photos,
 etc.) that aren't obvious from code alone.
 
-**Current state:** the `app/` tree is still the unmodified `create-expo-app`
-template (tabs example screens, no auth/Supabase wiring yet). The backend
-schema in `supabase/schema.sql` exists and is documented but has not been
-applied or connected to the app — there is no `@supabase/supabase-js`
-dependency yet. Treat the architecture doc as the target design, not the
-current implementation.
+**Current state:** the MVP is shipped and connected to Supabase
+(`@supabase/supabase-js`): auth/onboarding, 6-digit invitations (plus a
+custom-scheme deep link), family/child setup, nanny activity logging
+(templates, free-text notes, photos, multi-child), the parent feed, push
+notifications, and a responsive web build deployable to EAS Hosting.
+`docs/architecture.md` §7 tracks what has shipped vs. what is still open;
+`git log` and the open PRs are the live truth.
 
 ## Commands
 
@@ -53,17 +54,23 @@ There is no test runner configured in `package.json`.
 
 - Postgres schema, RLS policies, and helper functions are all defined in
   `supabase/schema.sql` — apply it via the Supabase SQL Editor or as a
-  migration; it's the single source of truth for the data model.
+  migration; it's the single source of truth for the data model. Post-MVP
+  changes (`activity_children`, the `activity-media` bucket) were applied
+  directly to the live project and documented here rather than as files under
+  `supabase/migrations/`, so `schema.sql` — not the migrations folder —
+  reflects the real database.
 - Core tables: `profiles` (role: parent|nanny), `families`, `children`,
   `family_members` (M:N parents↔family), `caregiver_assignments` (M:N
   nannies↔family), `invitations` (6-digit code join flow), `activity_templates`
-  (seeded tap-to-log presets), `activities` (one `child_id` per row — multi-
-  child logging is an intentional post-MVP revisit).
+  (seeded tap-to-log presets), `activities` (`child_id` is the primary child;
+  the `activity_children` join table carries the full set for multi-sibling
+  logging).
 - Access control is enforced entirely through RLS using two
   `SECURITY DEFINER` helpers, `has_family_access(family_id)` and
   `is_family_caregiver(family_id)`: parents/nannies linked to a child's family
   can read its activities; only the assigned nanny can write, as themselves.
 - `redeem_invite(code)` is `SECURITY DEFINER` specifically because a code
   redeemer has no family access yet — RLS alone can't allow that insert.
-- `media_urls` on `activities` exists now but photo upload UI is deliberately
-  deferred — no migration will be needed when that ships.
+- `media_urls` on `activities` holds Supabase Storage paths for attached
+  photos (private `activity-media` bucket, rendered via short-lived signed
+  URLs — see `lib/media.ts`).
