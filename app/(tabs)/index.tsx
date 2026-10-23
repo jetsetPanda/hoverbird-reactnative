@@ -490,7 +490,7 @@ function LogActivityScreen({
           {logMutation.isPending ? (
             <ActivityIndicator color="#fff" />
           ) : (
-            <ThemedText style={[styles.buttonText, noChildSelected && styles.disabledText]}>
+            <ThemedText style={styles.buttonText}>
               {noteText.trim() && pendingPhoto
                 ? 'Log note + photo'
                 : pendingPhoto && !noteText.trim()
@@ -636,7 +636,7 @@ function ActivityList({
             <View style={[styles.activityIconBadge, { backgroundColor: color + '22' }]}>
               <MaterialIcons name={icon as never} size={20} color={color} />
             </View>
-            <ThemedView style={styles.activityBody}>
+            <View style={styles.activityBody}>
               <ThemedText type="defaultSemiBold">
                 {activity.activity_templates?.label ?? activity.note ?? activity.category}
                 {showChildName && names ? ` · ${names}` : ''}
@@ -652,7 +652,7 @@ function ActivityList({
                 </View>
               ) : null}
               <ThemedText style={styles.timeText}>{timeAgo(activity.occurred_at)}</ThemedText>
-            </ThemedView>
+            </View>
           </ThemedView>
         );
       })}

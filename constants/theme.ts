@@ -28,7 +28,6 @@ export const Colors = {
     tint: tintColorLight,
     tabIconDefault: '#687076',
     tabIconSelected: tintColorLight,
-    onAccent: '#fff', // text/icon on a colored accent button
     error: '#d33',
     errorText: '#c23b3b',
     errorSurface: 'rgba(194, 59, 59, 0.10)',
@@ -57,7 +56,6 @@ export const Colors = {
     tint: tintColorDark,
     tabIconDefault: '#9BA1A6',
     tabIconSelected: tintColorDark,
-    onAccent: '#fff',
     error: '#ff6b6b',
     errorText: '#ff8080',
     errorSurface: 'rgba(255, 107, 107, 0.15)',
