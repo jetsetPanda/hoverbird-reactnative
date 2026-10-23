@@ -1,17 +1,20 @@
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { Link } from 'expo-router';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { Radii, Spacing, webContentContainer } from '@/constants/theme';
+import { Radii, Spacing, webContentContainer, type ThemeColors } from '@/constants/theme';
 import { useAuth } from '@/contexts/auth-provider';
+import { useThemeColors } from '@/hooks/use-theme-color';
 
 export default function SignUpScreen() {
   const { signUp } = useAuth();
   const insets = useSafeAreaInsets();
+  const c = useThemeColors();
+  const styles = useMemo(() => makeStyles(c), [c]);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -39,7 +42,7 @@ export default function SignUpScreen() {
     return (
       <ThemedView style={[styles.container, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>
         <View style={styles.logoBadge}>
-          <MaterialIcons name="mark-email-read" size={36} color="#0a7ea4" />
+          <MaterialIcons name="mark-email-read" size={36} color={c.tint} />
         </View>
         <ThemedText type="title" style={styles.title}>
           Check your email
@@ -57,7 +60,7 @@ export default function SignUpScreen() {
   return (
     <ThemedView style={styles.container}>
       <View style={styles.logoBadge}>
-        <MaterialIcons name="family-restroom" size={36} color="#0a7ea4" />
+        <MaterialIcons name="family-restroom" size={36} color={c.tint} />
       </View>
       <ThemedText type="title" style={styles.title}>
         Create an account
@@ -65,11 +68,11 @@ export default function SignUpScreen() {
       <ThemedText style={styles.subtitle}>Track activities and milestones together.</ThemedText>
 
       <View style={styles.inputRow}>
-        <MaterialIcons name="mail-outline" size={20} color="#687076" style={styles.inputIcon} />
+        <MaterialIcons name="mail-outline" size={20} color={c.icon} style={styles.inputIcon} />
         <TextInput
           style={styles.input}
           placeholder="Email"
-          placeholderTextColor="#687076"
+          placeholderTextColor={c.textMuted}
           autoCapitalize="none"
           keyboardType="email-address"
           autoComplete="email"
@@ -78,11 +81,11 @@ export default function SignUpScreen() {
         />
       </View>
       <View style={styles.inputRow}>
-        <MaterialIcons name="lock-outline" size={20} color="#687076" style={styles.inputIcon} />
+        <MaterialIcons name="lock-outline" size={20} color={c.icon} style={styles.inputIcon} />
         <TextInput
           style={styles.input}
           placeholder="Password"
-          placeholderTextColor="#687076"
+          placeholderTextColor={c.textMuted}
           secureTextEntry={!showPassword}
           autoComplete="new-password"
           value={password}
@@ -96,7 +99,7 @@ export default function SignUpScreen() {
           <MaterialIcons
             name={showPassword ? 'visibility-off' : 'visibility'}
             size={20}
-            color="#687076"
+            color={c.icon}
           />
         </Pressable>
       </View>
@@ -104,7 +107,7 @@ export default function SignUpScreen() {
 
       {error ? (
         <View style={styles.errorBanner}>
-          <MaterialIcons name="error-outline" size={16} color="#d33" />
+          <MaterialIcons name="error-outline" size={16} color={c.error} />
           <ThemedText style={styles.error}>{error}</ThemedText>
         </View>
       ) : null}
@@ -133,7 +136,8 @@ export default function SignUpScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (c: ThemeColors) =>
+  StyleSheet.create({
   container: {
     flex: 1,
     justifyContent: 'center',
@@ -145,7 +149,7 @@ const styles = StyleSheet.create({
     width: 64,
     height: 64,
     borderRadius: Radii.lg,
-    backgroundColor: 'rgba(10, 126, 164, 0.12)',
+    backgroundColor: c.tintSurface,
     alignItems: 'center',
     justifyContent: 'center',
     alignSelf: 'center',
@@ -163,7 +167,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: '#687076',
+    borderColor: c.inputBorder,
     borderRadius: Radii.sm,
     paddingHorizontal: 14,
   },
@@ -174,6 +178,7 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingVertical: 12,
     fontSize: 16,
+    color: c.text,
   },
   passwordHint: {
     fontSize: 13,
@@ -186,7 +191,7 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   error: {
-    color: '#d33',
+    color: c.error,
     flexShrink: 1,
   },
   button: {

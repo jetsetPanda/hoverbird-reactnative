@@ -4,7 +4,7 @@ import * as Haptics from 'expo-haptics';
 import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
 import { useRouter } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Pressable,
@@ -25,8 +25,10 @@ import {
   Spacing,
   TabBarClearance,
   webContentContainer,
+  type ThemeColors,
 } from '@/constants/theme';
 import { useAuth } from '@/contexts/auth-provider';
+import { useThemeColors } from '@/hooks/use-theme-color';
 import {
   activityChildNames,
   fetchActivities,
@@ -77,6 +79,8 @@ export default function HomeScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const accent = profile ? RoleColors[profile.role] : RoleColors.nanny;
+  const c = useThemeColors();
+  const styles = useMemo(() => makeStyles(c), [c]);
 
   const familyQuery = useQuery({
     queryKey: ['my-family', profile?.id],
@@ -101,7 +105,7 @@ export default function HomeScreen() {
   if (!familyQuery.data) {
     return (
       <ThemedView style={[styles.center, { paddingTop: insets.top }]}>
-        <MaterialIcons name="home" size={48} color="#9AA1A6" style={styles.emptyIcon} />
+        <MaterialIcons name="home" size={48} color={c.iconFaint} style={styles.emptyIcon} />
         <ThemedText type="title" style={styles.title}>
           No family yet
         </ThemedText>
@@ -130,7 +134,7 @@ export default function HomeScreen() {
   if (children.length === 0) {
     return (
       <ThemedView style={[styles.center, { paddingTop: insets.top }]}>
-        <MaterialIcons name="child-care" size={48} color="#9AA1A6" style={styles.emptyIcon} />
+        <MaterialIcons name="child-care" size={48} color={c.iconFaint} style={styles.emptyIcon} />
         <ThemedText type="title" style={styles.title}>
           No children yet
         </ThemedText>
@@ -181,6 +185,8 @@ function LogActivityScreen({
   const [photoError, setPhotoError] = useState<string | null>(null);
   const insets = useSafeAreaInsets();
   const queryClient = useQueryClient();
+  const c = useThemeColors();
+  const styles = useMemo(() => makeStyles(c), [c]);
 
   const templatesQuery = useQuery({ queryKey: ['activity-templates'], queryFn: fetchTemplates });
   const recentQuery = useQuery({
@@ -277,7 +283,7 @@ function LogActivityScreen({
     }
   };
 
-  const selectedChild = familyChildren.find((c) => c.id === selectedChildIds[0]);
+  const selectedChild = familyChildren.find((child) => child.id === selectedChildIds[0]);
 
   const [refreshing, setRefreshing] = useState(false);
   const onRefresh = async () => {
@@ -319,14 +325,14 @@ function LogActivityScreen({
           </ThemedView>
           {selectedChildIds.length > 1 ? (
             <ThemedView style={styles.multiChildCue}>
-              <MaterialIcons name="group" size={14} color="#687076" />
+              <MaterialIcons name="group" size={14} color={c.icon} />
               <ThemedText style={styles.multiChildCueText}>
                 {noClip(`Logging for ${selectedChildIds.length} children`)}
               </ThemedText>
             </ThemedView>
           ) : noChildSelected ? (
             <ThemedView style={styles.multiChildCue}>
-              <MaterialIcons name="touch-app" size={14} color="#687076" />
+              <MaterialIcons name="touch-app" size={14} color={c.icon} />
               <ThemedText style={styles.multiChildCueText}>
                 {noClip('Select a child to log activities')}
               </ThemedText>
@@ -339,7 +345,7 @@ function LogActivityScreen({
 
       {confirmation ? (
         <ThemedView style={styles.confirmationBanner}>
-          <MaterialIcons name="check-circle" size={18} color="#2a9d3f" />
+          <MaterialIcons name="check-circle" size={18} color={c.success} />
           <ThemedText style={styles.confirmation}>{confirmation}</ThemedText>
         </ThemedView>
       ) : null}
@@ -370,12 +376,12 @@ function LogActivityScreen({
                   <View
                     style={[
                       styles.templateIconBadge,
-                      { backgroundColor: noChildSelected ? '#DEDEDE22' : color + '22' },
+                      { backgroundColor: noChildSelected ? c.textDisabled + '22' : color + '22' },
                     ]}>
                     <MaterialIcons
                       name={icon as never}
                       size={20}
-                      color={noChildSelected ? '#DEDEDE' : color}
+                      color={noChildSelected ? c.textDisabled : color}
                     />
                   </View>
                   <ThemedText
@@ -392,7 +398,7 @@ function LogActivityScreen({
         <TextInput
           style={[styles.input, styles.noteInput]}
           placeholder="Something else…"
-          placeholderTextColor="#687076"
+          placeholderTextColor={c.textMuted}
           multiline
           value={noteText}
           onChangeText={setNoteText}
@@ -417,7 +423,7 @@ function LogActivityScreen({
                 setPhotoError(null);
               }}
               style={({ pressed }) => [styles.photoRemove, pressed && styles.pressed]}>
-              <MaterialIcons name="close" size={18} color="#687076" />
+              <MaterialIcons name="close" size={18} color={c.icon} />
             </Pressable>
           </View>
         ) : (
@@ -431,7 +437,7 @@ function LogActivityScreen({
               <MaterialIcons
                 name="photo-library"
                 size={16}
-                color={noChildSelected ? '#DEDEDE' : accent}
+                color={noChildSelected ? c.textDisabled : accent}
               />
               <ThemedText style={[styles.photoButtonText, noChildSelected && styles.disabledText]}>
                 {noClip('Add photo')}
@@ -446,7 +452,7 @@ function LogActivityScreen({
               <MaterialIcons
                 name="photo-camera"
                 size={16}
-                color={noChildSelected ? '#DEDEDE' : accent}
+                color={noChildSelected ? c.textDisabled : accent}
               />
               <ThemedText style={[styles.photoButtonText, noChildSelected && styles.disabledText]}>
                 {noClip('Camera')}
@@ -456,7 +462,7 @@ function LogActivityScreen({
         )}
         {photoError ? (
           <ThemedView style={styles.errorBanner}>
-            <MaterialIcons name="error-outline" size={18} color="#c23b3b" />
+            <MaterialIcons name="error-outline" size={18} color={c.errorText} />
             <ThemedText style={styles.errorText}>{photoError}</ThemedText>
           </ThemedView>
         ) : null}
@@ -484,7 +490,7 @@ function LogActivityScreen({
           {logMutation.isPending ? (
             <ActivityIndicator color="#fff" />
           ) : (
-            <ThemedText style={[styles.buttonText, noChildSelected && styles.disabledText]}>
+            <ThemedText style={styles.buttonText}>
               {noteText.trim() && pendingPhoto
                 ? 'Log note + photo'
                 : pendingPhoto && !noteText.trim()
@@ -511,9 +517,11 @@ function ActivityFeedScreen({
   accent: string;
 }) {
   const [categoryFilter, setCategoryFilter] = useState<string | null>(null);
-  const childIds = familyChildren.map((c) => c.id);
+  const childIds = familyChildren.map((child) => child.id);
   const insets = useSafeAreaInsets();
   const queryClient = useQueryClient();
+  const c = useThemeColors();
+  const styles = useMemo(() => makeStyles(c), [c]);
 
   const activitiesQuery = useQuery({
     queryKey: ['activities', ...childIds],
@@ -607,10 +615,12 @@ function ActivityList({
   activities: Activity[];
   showChildName: boolean;
 }) {
+  const c = useThemeColors();
+  const styles = useMemo(() => makeStyles(c), [c]);
   if (activities.length === 0) {
     return (
       <ThemedView style={[styles.center, styles.spacer]}>
-        <MaterialIcons name="auto-stories" size={40} color="#9AA1A6" style={styles.emptyIcon} />
+        <MaterialIcons name="auto-stories" size={40} color={c.iconFaint} style={styles.emptyIcon} />
         <ThemedText style={styles.emptyText}>No activities logged yet.</ThemedText>
       </ThemedView>
     );
@@ -626,7 +636,7 @@ function ActivityList({
             <View style={[styles.activityIconBadge, { backgroundColor: color + '22' }]}>
               <MaterialIcons name={icon as never} size={20} color={color} />
             </View>
-            <ThemedView style={styles.activityBody}>
+            <View style={styles.activityBody}>
               <ThemedText type="defaultSemiBold">
                 {activity.activity_templates?.label ?? activity.note ?? activity.category}
                 {showChildName && names ? ` · ${names}` : ''}
@@ -642,7 +652,7 @@ function ActivityList({
                 </View>
               ) : null}
               <ThemedText style={styles.timeText}>{timeAgo(activity.occurred_at)}</ThemedText>
-            </ThemedView>
+            </View>
           </ThemedView>
         );
       })}
@@ -656,6 +666,8 @@ function ActivityList({
 // Tapping toggles between thumbnail and full-width — deliberately no gallery.
 function ActivityPhoto({ path }: { path: string }) {
   const [expanded, setExpanded] = useState(false);
+  const c = useThemeColors();
+  const styles = useMemo(() => makeStyles(c), [c]);
   const urlQuery = useQuery({
     queryKey: ['activity-media-url', path],
     queryFn: () => getActivityMediaUrl(path),
@@ -665,7 +677,7 @@ function ActivityPhoto({ path }: { path: string }) {
   if (urlQuery.isError) {
     return (
       <View style={[styles.photoThumb, styles.photoPlaceholder]}>
-        <MaterialIcons name="broken-image" size={24} color="#9AA1A6" />
+        <MaterialIcons name="broken-image" size={24} color={c.iconFaint} />
       </View>
     );
   }
@@ -687,7 +699,8 @@ function ActivityPhoto({ path }: { path: string }) {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (c: ThemeColors) =>
+  StyleSheet.create({
   container: {
     padding: Spacing.xl,
     paddingBottom: TabBarClearance,
@@ -720,24 +733,25 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: Spacing.xs,
     marginTop: Spacing.sm,
-    backgroundColor: 'rgba(42, 157, 63, 0.12)',
+    backgroundColor: c.successSurface,
     borderRadius: Radii.sm,
     paddingHorizontal: Spacing.md,
     paddingVertical: Spacing.sm,
     alignSelf: 'flex-start',
   },
   confirmation: {
-    color: '#2a9d3f',
+    color: c.success,
     fontWeight: '600',
   },
   input: {
     borderWidth: 1,
-    borderColor: '#687076',
+    borderColor: c.inputBorder,
     borderRadius: Radii.sm,
     paddingHorizontal: 14,
     paddingVertical: 12,
     fontSize: 16,
     marginBottom: Spacing.sm,
+    color: c.text,
   },
   noteInput: {
     minHeight: 48,
@@ -778,7 +792,7 @@ const styles = StyleSheet.create({
   },
   chip: {
     borderWidth: 1,
-    borderColor: '#687076',
+    borderColor: c.inputBorder,
     borderRadius: Radii.pill,
     paddingHorizontal: 14,
     paddingVertical: 8,
@@ -813,7 +827,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: Spacing.sm,
     borderWidth: 1,
-    borderColor: 'rgba(104, 112, 118, 0.25)',
+    borderColor: c.hairline,
     borderRadius: Radii.lg,
     paddingHorizontal: Spacing.md,
     paddingVertical: Spacing.sm,
@@ -829,7 +843,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
   },
   disabledText: {
-    color: '#DEDEDE',
+    color: c.textDisabled,
   },
   activityCard: {
     flexDirection: 'row',
@@ -837,7 +851,7 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.md,
     paddingHorizontal: Spacing.md,
     borderRadius: Radii.md,
-    backgroundColor: 'rgba(104, 112, 118, 0.06)',
+    backgroundColor: c.surfaceMuted,
     marginBottom: Spacing.sm,
   },
   activityIconBadge: {
@@ -864,7 +878,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 6,
     borderWidth: 1,
-    borderColor: 'rgba(104, 112, 118, 0.25)',
+    borderColor: c.hairline,
     borderRadius: Radii.pill,
     paddingHorizontal: 14,
     paddingVertical: 8,
@@ -891,13 +905,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: Spacing.xs,
     marginBottom: Spacing.sm,
-    backgroundColor: 'rgba(194, 59, 59, 0.10)',
+    backgroundColor: c.errorSurface,
     borderRadius: Radii.sm,
     paddingHorizontal: Spacing.md,
     paddingVertical: Spacing.sm,
   },
   errorText: {
-    color: '#c23b3b',
+    color: c.errorText,
     flex: 1,
   },
   photoRow: {
@@ -912,7 +926,7 @@ const styles = StyleSheet.create({
     borderRadius: Radii.md,
   },
   photoPlaceholder: {
-    backgroundColor: 'rgba(104, 112, 118, 0.12)',
+    backgroundColor: c.badgeBg,
     alignItems: 'center',
     justifyContent: 'center',
   },

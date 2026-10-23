@@ -4,26 +4,30 @@ import { Platform, StyleSheet } from 'react-native';
 
 import { GlassTabButton } from '@/components/glass-tab-button';
 import { IconSymbol } from '@/components/ui/icon-symbol';
-import { Colors, ContentMaxWidth } from '@/constants/theme';
-import { useColorScheme } from '@/hooks/use-color-scheme';
+import { ContentMaxWidth } from '@/constants/theme';
+import { useThemeColors } from '@/hooks/use-theme-color';
 
 export default function TabLayout() {
-  const colorScheme = useColorScheme();
+  const c = useThemeColors();
 
   return (
     <Tabs
       screenOptions={{
-        tabBarActiveTintColor: Colors[colorScheme ?? 'light'].tint,
+        tabBarActiveTintColor: c.tint,
         headerShown: false,
         tabBarButton: GlassTabButton,
         // Floating "iOS glass" pill: content scrolls underneath (the bar is
         // absolutely positioned) and shows through the translucent fill.
         // True backdrop blur needs expo-blur (a native module — dev-client
         // rebuild); until then the frosted fill + light edge + soft shadow
-        // carry the effect, which is also the cheaper path on Android.
-        tabBarStyle: [styles.tabBar, Platform.OS === 'web' && styles.tabBarWeb],
+        // carry the effect. Glass colors are themed (dark glass in dark mode).
+        tabBarStyle: [
+          styles.tabBar,
+          { backgroundColor: c.glassBg, borderColor: c.glassBorder, borderTopColor: c.glassBorder },
+          Platform.OS === 'web' && styles.tabBarWeb,
+        ],
         tabBarItemStyle: styles.tabItem,
-        tabBarActiveBackgroundColor: 'rgba(255, 255, 255, 0.9)',
+        tabBarActiveBackgroundColor: c.glassActive,
         tabBarLabelStyle: styles.tabLabel,
       }}>
         <Tabs.Screen
@@ -60,11 +64,9 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     // iOS renders softer, continuous "squircle" corners like native controls.
     borderCurve: 'continuous',
-    backgroundColor: 'rgba(255, 255, 255, 0.72)',
+    // background + border colors are themed inline (glassBg / glassBorder).
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.3)',
     borderTopWidth: 1,
-    borderTopColor: 'rgba(255, 255, 255, 0.3)',
     // Soft drop shadow (elevation drives it on Android).
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },

@@ -3,7 +3,7 @@
  * https://docs.expo.dev/guides/color-schemes/
  */
 
-import { Colors } from '@/constants/theme';
+import { Colors, type ThemeColors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 
 export function useThemeColor(
@@ -18,4 +18,10 @@ export function useThemeColor(
   } else {
     return Colors[theme][colorName];
   }
+}
+
+// The whole semantic palette for the active scheme. Screens read this and build
+// their StyleSheet from it (see makeStyles pattern) so colors follow the theme.
+export function useThemeColors(): ThemeColors {
+  return Colors[useColorScheme() ?? 'light'];
 }

@@ -1,16 +1,19 @@
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { Radii, RoleColors, Spacing, webContentContainer } from '@/constants/theme';
+import { Radii, RoleColors, Spacing, webContentContainer, type ThemeColors } from '@/constants/theme';
 import { useAuth, type UserRole } from '@/contexts/auth-provider';
+import { useThemeColors } from '@/hooks/use-theme-color';
 
 export default function CompleteProfileScreen() {
   const { completeProfile, signOut } = useAuth();
   const insets = useSafeAreaInsets();
+  const c = useThemeColors();
+  const styles = useMemo(() => makeStyles(c), [c]);
   const [fullName, setFullName] = useState('');
   const [role, setRole] = useState<UserRole | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -40,7 +43,7 @@ export default function CompleteProfileScreen() {
       <TextInput
         style={styles.input}
         placeholder="Full name"
-        placeholderTextColor="#687076"
+        placeholderTextColor={c.textMuted}
         autoCapitalize="words"
         value={fullName}
         onChangeText={setFullName}
@@ -62,7 +65,7 @@ export default function CompleteProfileScreen() {
           <MaterialIcons
             name="supervisor-account"
             size={22}
-            color={role === 'parent' ? '#fff' : '#687076'}
+            color={role === 'parent' ? '#fff' : c.icon}
           />
           <ThemedText style={role === 'parent' ? styles.roleTextSelected : undefined}>
             Parent
@@ -80,7 +83,7 @@ export default function CompleteProfileScreen() {
           <MaterialIcons
             name="volunteer-activism"
             size={22}
-            color={role === 'nanny' ? '#fff' : '#687076'}
+            color={role === 'nanny' ? '#fff' : c.icon}
           />
           <ThemedText style={role === 'nanny' ? styles.roleTextSelected : undefined}>
             Nanny
@@ -90,7 +93,7 @@ export default function CompleteProfileScreen() {
 
       {error ? (
         <View style={styles.errorBanner}>
-          <MaterialIcons name="error-outline" size={16} color="#d33" />
+          <MaterialIcons name="error-outline" size={16} color={c.error} />
           <ThemedText style={styles.error}>{error}</ThemedText>
         </View>
       ) : null}
@@ -113,7 +116,8 @@ export default function CompleteProfileScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (c: ThemeColors) =>
+  StyleSheet.create({
   container: {
     flex: 1,
     justifyContent: 'center',
@@ -129,11 +133,12 @@ const styles = StyleSheet.create({
   },
   input: {
     borderWidth: 1,
-    borderColor: '#687076',
+    borderColor: c.inputBorder,
     borderRadius: Radii.sm,
     paddingHorizontal: 14,
     paddingVertical: 12,
     fontSize: 16,
+    color: c.text,
   },
   label: {
     marginTop: Spacing.sm,
@@ -145,7 +150,7 @@ const styles = StyleSheet.create({
   roleOption: {
     flex: 1,
     borderWidth: 1,
-    borderColor: '#687076',
+    borderColor: c.inputBorder,
     borderRadius: Radii.sm,
     paddingVertical: 14,
     alignItems: 'center',
@@ -161,7 +166,7 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   error: {
-    color: '#d33',
+    color: c.error,
     flexShrink: 1,
   },
   button: {

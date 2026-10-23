@@ -158,7 +158,9 @@ npx eas-cli build --profile development --platform android
 Install the resulting build, then `npm start` and connect to it. Reloading
 JavaScript is enough for most changes — **but adding or changing a native
 module (a new `expo-*` package with native code) requires a new development
-build**, not just a Metro reload.
+build**, not just a Metro reload. Native app config in `app.config.js` is baked
+in the same way: `userInterfaceStyle` (dark mode) only takes effect in a build
+made after it was set to `'automatic'` — older builds stay light.
 
 ### Build profiles (`eas.json`)
 
